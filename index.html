@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>NanoVG Web Example</title>
+  <link rel="icon" href="data:,">
+  <style type="text/css">
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvasgl"></canvas>
+  <script>
+    var $canvasgl = document.getElementById("canvasgl");
+  </script>
+  <script src="js/wasm.js"></script>
+  <script src="js/webgl.js"></script>
+  <script>
+
+    const env = {
+      ...wasm,
+      ...webgl,
+    }
+
+    fetchAndInstantiate('zig-out/lib/main.wasm', { env }).then(instance => {
+      memory = instance.exports.memory;
+      instance.exports.onInit();
+
+      function resize() {
+        $canvasgl.width = window.devicePixelRatio * window.innerWidth;
+        $canvasgl.height = window.devicePixelRatio * window.innerHeight;
+        $canvasgl.style.width = window.innerWidth + "px";
+        $canvasgl.style.height = window.innerHeight + "px";
+        instance.exports.onResize(window.innerWidth, window.innerHeight, window.devicePixelRatio);
+      }
+      window.addEventListener('resize', resize, false);
+      resize();
+
+      const onAnimationFrame = instance.exports.onAnimationFrame;
+
+      document.addEventListener('keydown', e => instance.exports.onKeyDown(e.keyCode));
+      // document.addEventListener('keyup', e => instance.exports.onKeyUp(e.keyCode, 0));
+      // document.addEventListener('mousedown', e => instance.exports.onMouseDown(e.button, e.x, e.y));
+      // document.addEventListener('mouseup', e => instance.exports.onMouseUp(e.button, e.x, e.y));
+      document.addEventListener('mousemove', e => instance.exports.onMouseMove(e.x, e.y));
+
+      function step(timestamp) {
+        onAnimationFrame(timestamp);
+        window.requestAnimationFrame(step);
+      }
+
+      window.requestAnimationFrame(step);
+    });
+
+    function fetchAndInstantiate(url, importObject) {
+      return fetch(url)
+        .then(response => response.arrayBuffer())
+        .then(bytes => WebAssembly.instantiate(bytes, importObject))
+        .then(results => results.instance);
+    }
+  </script>
+</body>
+
+</html>
