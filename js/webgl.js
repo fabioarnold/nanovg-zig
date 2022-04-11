@@ -109,14 +109,14 @@ const glGetShaderiv = (shader, pname, params) => {
   const buffer = new Uint32Array(memory.buffer, params, 1);
   buffer[0] = gl.getShaderParameter(glShaders[shader], pname);
 };
-const glGetShaderInfoLog = (shader, bufSize, length, infoLog) => {
-  console.log(gl.getShaderInfoLog(glShaders[shader]));
-};
 const jsBindAttribLocation = (programId, index, namePtr, nameLen) => gl.bindAttribLocation(glPrograms[programId], index, readCharStr(namePtr, nameLen));
 const glLinkProgram = (program) => gl.linkProgram(glPrograms[program]);
 const glGetProgramiv = (program, pname, params) => {
   const buffer = new Uint32Array(memory.buffer, params, 1);
   buffer[0] = gl.getProgramParameter(glPrograms[program], pname);
+};
+const glGetProgramInfoLog = (shader, bufSize, length, infoLog) => {
+  console.log(gl.getProgramInfoLog(glShaders[shader]));
 };
 const glGetAttribLocation = (programId, namePtr, nameLen) => gl.getAttribLocation(glPrograms[programId], readCharStr(namePtr, nameLen));
 const jsGetUniformLocation = (programId, namePtr, nameLen) => {
@@ -298,6 +298,7 @@ var webgl = {
   jsBindAttribLocation,
   glLinkProgram,
   glGetProgramiv,
+  glGetProgramInfoLog,
   glGetAttribLocation,
   jsGetUniformLocation,
   glUniform4f,

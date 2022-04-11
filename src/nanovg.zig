@@ -20,8 +20,8 @@ pub const Paint = struct {
     extent: [2]f32,
     radius: f32,
     feather: f32,
-    innerColor: Color,
-    outerColor: Color,
+    inner_color: Color,
+    outer_color: Color,
     image: Image,
     colormap: Image,
 };
@@ -108,10 +108,10 @@ pub const CompositeOperation = enum(u8) {
 };
 
 pub const CompositeOperationState = struct {
-    srcRGB: BlendFactor,
-    dstRGB: BlendFactor,
-    srcAlpha: BlendFactor,
-    dstAlpha: BlendFactor,
+    src_rgb: BlendFactor,
+    dst_rgb: BlendFactor,
+    src_alpha: BlendFactor,
+    dst_alpha: BlendFactor,
 
     pub fn initOperation(operation: CompositeOperation) CompositeOperationState {
         return switch (operation) {
@@ -130,7 +130,7 @@ pub const CompositeOperationState = struct {
     }
 
     pub fn initFactors(sfactor: BlendFactor, dfactor: BlendFactor) CompositeOperationState {
-        return .{ .srcRGB = sfactor, .dstRGB = dfactor, .srcAlpha = sfactor, .dstAlpha = dfactor };
+        return .{ .src_rgb = sfactor, .dst_rgb = dfactor, .src_alpha = sfactor, .dst_alpha = dfactor };
     }
 };
 

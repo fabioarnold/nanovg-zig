@@ -25,6 +25,8 @@ pub fn build(b: *std.build.Builder) void {
         const exe = b.addExecutable("main", "examples/example_glfw.zig");
         exe.setTarget(target);
         exe.setBuildMode(mode);
+        exe.addIncludePath("lib/gl2/include");
+        exe.addCSourceFile("lib/gl2/src/glad.c", &.{});
         exe.linkSystemLibrary("glfw3");
         exe.linkSystemLibrary("GL");
         addNanoVGPackage(exe);

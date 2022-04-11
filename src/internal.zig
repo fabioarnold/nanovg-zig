@@ -1074,8 +1074,8 @@ pub const Context = struct {
 
         p.feather = std.math.max(1, d);
 
-        p.innerColor = icol;
-        p.outerColor = ocol;
+        p.inner_color = icol;
+        p.outer_color = ocol;
 
         return p;
     }
@@ -1097,8 +1097,8 @@ pub const Context = struct {
 
         p.feather = std.math.max(1, f);
 
-        p.innerColor = icol;
-        p.outerColor = ocol;
+        p.inner_color = icol;
+        p.outer_color = ocol;
 
         return p;
     }
@@ -1118,8 +1118,8 @@ pub const Context = struct {
 
         p.feather = std.math.max(1, f);
 
-        p.innerColor = icol;
-        p.outerColor = ocol;
+        p.inner_color = icol;
+        p.outer_color = ocol;
 
         return p;
     }
@@ -1137,8 +1137,8 @@ pub const Context = struct {
 
         p.image = image;
 
-        p.innerColor = nvg.rgbaf(1, 1, 1, alpha);
-        p.outerColor = nvg.rgbaf(1, 1, 1, alpha);
+        p.inner_color = nvg.rgbaf(1, 1, 1, alpha);
+        p.outer_color = nvg.rgbaf(1, 1, 1, alpha);
 
         return p;
     }
@@ -1157,8 +1157,8 @@ pub const Context = struct {
         p.image = image;
         p.colormap = colormap;
 
-        p.innerColor = nvg.rgbaf(1, 1, 1, alpha);
-        p.outerColor = nvg.rgbaf(1, 1, 1, alpha);
+        p.inner_color = nvg.rgbaf(1, 1, 1, alpha);
+        p.outer_color = nvg.rgbaf(1, 1, 1, alpha);
 
         return p;
     }
@@ -1225,8 +1225,8 @@ pub const Context = struct {
         var fill_paint = state.fill;
 
         // Apply global alpha
-        fill_paint.innerColor.a *= state.alpha;
-        fill_paint.outerColor.a *= state.alpha;
+        fill_paint.inner_color.a *= state.alpha;
+        fill_paint.outer_color.a *= state.alpha;
 
         ctx.flattenPaths();
 
@@ -1257,14 +1257,14 @@ pub const Context = struct {
             // If the stroke width is less than pixel size, use alpha to emulate coverage.
             // Since coverage is area, scale by alpha*alpha.
             const alpha = std.math.clamp(stroke_width / ctx.fringeWidth, 0, 1);
-            stroke_paint.innerColor.a *= alpha * alpha;
-            stroke_paint.outerColor.a *= alpha * alpha;
+            stroke_paint.inner_color.a *= alpha * alpha;
+            stroke_paint.outer_color.a *= alpha * alpha;
             stroke_width = ctx.fringeWidth;
         }
 
         // Apply global alpha
-        stroke_paint.innerColor.a *= state.alpha;
-        stroke_paint.outerColor.a *= state.alpha;
+        stroke_paint.inner_color.a *= state.alpha;
+        stroke_paint.outer_color.a *= state.alpha;
 
         ctx.flattenPaths();
 
@@ -1381,8 +1381,8 @@ pub const Context = struct {
         paint.image.handle = ctx.fontImages[ctx.fontImageIdx];
 
         // Apply global alpha
-        paint.innerColor.a *= state.alpha;
-        paint.outerColor.a *= state.alpha;
+        paint.inner_color.a *= state.alpha;
+        paint.outer_color.a *= state.alpha;
 
         ctx.params.renderTriangles(ctx.params.userPtr, &paint, state.compositeOperation, &state.scissor, ctx.fringeWidth, verts);
 
@@ -2113,8 +2113,8 @@ pub fn setPaintColor(paint: *Paint, color: Color) void {
     nvg.transformIdentity(&paint.xform);
     paint.radius = 0;
     paint.feather = 1;
-    paint.innerColor = color;
-    paint.outerColor = color;
+    paint.inner_color = color;
+    paint.outer_color = color;
 }
 
 fn ptEquals(x1: f32, y1: f32, x2: f32, y2: f32, tol: f32) bool {

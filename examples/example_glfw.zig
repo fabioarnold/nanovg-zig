@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const c = @cImport({
+    @cInclude("glad/glad.h");
     @cInclude("GLFW/glfw3.h");
 });
 
@@ -47,6 +48,10 @@ pub fn main() !void {
     _ = c.glfwSetKeyCallback(window, keyCallback);
 
     c.glfwMakeContextCurrent(window);
+
+    if (c.gladLoadGL() == 0) {
+        return error.GLADInitFailed;
+    }
 
     var vg = try nvg.gl.init(allocator, .{
         .antialias = true,
