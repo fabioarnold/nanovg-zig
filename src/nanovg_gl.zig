@@ -3,7 +3,8 @@ const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const gl = if (builtin.cpu.arch.isWasm())
+const use_webgl = builtin.cpu.arch.isWasm();
+const gl = if (use_webgl)
     @import("web/webgl.zig")
 else
     @cImport({
@@ -563,9 +564,11 @@ fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32,
     tex.flags = flags;
     gl.glBindTexture(gl.GL_TEXTURE_2D, tex.tex);
 
-    // GL 1.4 and later has support for generating mipmaps using a tex parameter.
-    if (flags.generate_mipmaps) {
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_GENERATE_MIPMAP, gl.GL_TRUE);
+    if (!use_webgl) {
+        // GL 1.4 and later has support for generating mipmaps using a tex parameter.
+        if (flags.generate_mipmaps) {
+            gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_GENERATE_MIPMAP, gl.GL_TRUE);
+        }
     }
 
     switch (tex_type) {
@@ -589,9 +592,11 @@ fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32,
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, wrap_s);
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, wrap_t);
 
-    // if (flags.generate_mipmaps) {
-    //     gl.glGenerateMipmap(gl.GL_TEXTURE_2D);
-    // }
+    if (use_webgl) {
+        if (flags.generate_mipmaps) {
+            gl.glGenerateMipmap(gl.GL_TEXTURE_2D);
+        }
+    }
 
     return tex.id;
 }
