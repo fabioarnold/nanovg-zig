@@ -12,7 +12,7 @@ pub fn addNanoVGPackage(target: *std.build.LibExeObjStep) void {
     target.linkLibC();
 }
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
     if (target.cpu_arch != null and target.cpu_arch.? == .wasm32) {
@@ -27,8 +27,23 @@ pub fn build(b: *std.build.Builder) void {
         exe.setBuildMode(mode);
         exe.addIncludePath("lib/gl2/include");
         exe.addCSourceFile("lib/gl2/src/glad.c", &.{});
-        exe.linkSystemLibrary("glfw3");
-        exe.linkSystemLibrary("GL");
+        if (exe.target.isWindows()) {
+            exe.addVcpkgPaths(.dynamic) catch @panic("vcpkg not installed");
+            if (exe.vcpkg_bin_path) |bin_path| {
+                for (&[_][]const u8{ "glfw3.dll" }) |dll| {
+                    const src_dll = try std.fs.path.join(b.allocator, &.{ bin_path, dll });
+                    b.installBinFile(src_dll, dll);
+                }
+            }
+            exe.linkSystemLibrary("glfw3dll");
+            exe.linkSystemLibrary("opengl32");
+        } else if (exe.target.isDarwin()) {
+            exe.linkSystemLibrary("glfw3");
+            exe.linkFramework("OpenGL");
+        } else {
+            exe.linkSystemLibrary("glfw3");
+            exe.linkSystemLibrary("GL");
+        }
         addNanoVGPackage(exe);
         exe.install();
     }
