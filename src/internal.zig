@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const c = @cImport({
     @cDefine("FONS_NO_STDIO", "1");
@@ -33,12 +34,11 @@ pub const Context = struct {
     ncommands: u32 = 0,
     commandx: f32 = 0,
     commandy: f32 = 0,
-    states: [32]State = undefined,
-    nstates: u32 = 0,
+    states: ArrayList(State) = undefined,
     cache: PathCache,
     tess_tol: f32,
     dist_tol: f32,
-    fringeWidth: f32,
+    fringe_width: f32,
     device_px_ratio: f32 = 1,
     fs: ?*c.FONScontext = null,
     font_images: [4]i32 = [_]i32{0} ** 4,
@@ -54,13 +54,16 @@ pub const Context = struct {
             .allocator = allocator,
             .params = params,
             .commands = try allocator.alloc(f32, NVG_INIT_COMMANDS_SIZE),
+            .states = ArrayList(State).init(allocator),
             .cache = try PathCache.init(allocator),
             .tess_tol = undefined,
             .dist_tol = undefined,
-            .fringeWidth = undefined,
+            .fringe_width = undefined,
             .device_px_ratio = undefined,
         };
         errdefer ctx.deinit();
+
+        try ctx.states.ensureTotalCapacity(32);
 
         ctx.save();
         ctx.reset();
@@ -90,6 +93,7 @@ pub const Context = struct {
 
     pub fn deinit(ctx: *Context) void {
         ctx.allocator.free(ctx.commands);
+        ctx.states.deinit();
         ctx.cache.deinit();
 
         if (ctx.fs != null) {
@@ -111,23 +115,23 @@ pub const Context = struct {
     fn setDevicePixelRatio(ctx: *Context, ratio: f32) void {
         ctx.tess_tol = 0.25 / ratio;
         ctx.dist_tol = 0.01 / ratio;
-        ctx.fringeWidth = 1 / ratio;
+        ctx.fringe_width = 1 / ratio;
         ctx.device_px_ratio = ratio;
     }
 
     pub fn getState(ctx: *Context) *State {
-        return &ctx.states[ctx.nstates - 1];
+        return &ctx.states.items[ctx.states.items.len - 1];
     }
 
     pub fn save(ctx: *Context) void {
-        if (ctx.nstates >= ctx.states.len) return;
-        if (ctx.nstates > 0) ctx.states[ctx.nstates] = ctx.states[ctx.nstates - 1];
-        ctx.nstates += 1;
+        const state = ctx.states.addOne() catch return;
+        if (ctx.states.items.len > 1) {
+            state.* = ctx.states.items[ctx.states.items.len - 2];
+        }
     }
 
     pub fn restore(ctx: *Context) void {
-        if (ctx.nstates == 0) return;
-        ctx.nstates -= 1;
+        _ = ctx.states.popOrNull();
     }
 
     pub fn reset(ctx: *Context) void {
@@ -290,7 +294,7 @@ pub const Context = struct {
     }
 
     pub fn beginFrame(ctx: *Context, window_width: f32, window_height: f32, device_pixel_ratio: f32) void {
-        ctx.nstates = 0;
+        ctx.states.clearRetainingCapacity();
         ctx.save();
         ctx.reset();
 
@@ -571,7 +575,7 @@ pub const Context = struct {
 
     fn expandFill(ctx: *Context, w: f32, line_join: nvg.LineJoin, miter_limit: f32) i32 {
         const cache = &ctx.cache;
-        const aa = ctx.fringeWidth;
+        const aa = ctx.fringe_width;
         const fringe = w > 0.0;
 
         ctx.calculateJoins(w, line_join, miter_limit);
@@ -670,7 +674,7 @@ pub const Context = struct {
                 while (j < path.count) : (j += 1) {
                     p1 = &pts[j];
                     if ((p1.flags & (@enumToInt(PointFlag.bevel) | @enumToInt(PointFlag.innerbevel))) != 0) {
-                        dst_i += bevelJoin(dst[dst_i..], p0.*, p1.*, lw, rw, lu, ru, ctx.fringeWidth);
+                        dst_i += bevelJoin(dst[dst_i..], p0.*, p1.*, lw, rw, lu, ru, ctx.fringe_width);
                     } else {
                         dst[dst_i].set(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
                         dst_i += 1;
@@ -1229,12 +1233,12 @@ pub const Context = struct {
         ctx.flattenPaths();
 
         if (ctx.params.edge_antialias and state.shape_antialias) {
-            _ = ctx.expandFill(ctx.fringeWidth, .miter, 2.4);
+            _ = ctx.expandFill(ctx.fringe_width, .miter, 2.4);
         } else {
             _ = ctx.expandFill(0.0, .miter, 2.4);
         }
 
-        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringeWidth, ctx.cache.bounds, ctx.cache.paths[0..ctx.cache.npaths]);
+        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths[0..ctx.cache.npaths]);
 
         // Count triangles
         for (ctx.cache.paths[0..ctx.cache.npaths]) |path| {
@@ -1251,13 +1255,13 @@ pub const Context = struct {
         var stroke_width = std.math.clamp(state.stroke_width * s, 0, 200);
         var stroke_paint = state.stroke;
 
-        if (stroke_width < ctx.fringeWidth) {
+        if (stroke_width < ctx.fringe_width) {
             // If the stroke width is less than pixel size, use alpha to emulate coverage.
             // Since coverage is area, scale by alpha*alpha.
-            const alpha = std.math.clamp(stroke_width / ctx.fringeWidth, 0, 1);
+            const alpha = std.math.clamp(stroke_width / ctx.fringe_width, 0, 1);
             stroke_paint.inner_color.a *= alpha * alpha;
             stroke_paint.outer_color.a *= alpha * alpha;
-            stroke_width = ctx.fringeWidth;
+            stroke_width = ctx.fringe_width;
         }
 
         // Apply global alpha
@@ -1267,12 +1271,12 @@ pub const Context = struct {
         ctx.flattenPaths();
 
         if (ctx.params.edge_antialias and state.shape_antialias) {
-            _ = ctx.expandStroke(stroke_width * 0.5, ctx.fringeWidth, state.line_cap, state.line_join, state.miter_limit);
+            _ = ctx.expandStroke(stroke_width * 0.5, ctx.fringe_width, state.line_cap, state.line_join, state.miter_limit);
         } else {
             _ = ctx.expandStroke(stroke_width * 0.5, 0, state.line_cap, state.line_join, state.miter_limit);
         }
 
-        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringeWidth, stroke_width, ctx.cache.paths[0..ctx.cache.npaths]);
+        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringe_width, stroke_width, ctx.cache.paths[0..ctx.cache.npaths]);
 
         // Count triangles
         for (ctx.cache.paths[0..ctx.cache.npaths]) |path| {
@@ -1382,7 +1386,7 @@ pub const Context = struct {
         paint.inner_color.a *= state.alpha;
         paint.outer_color.a *= state.alpha;
 
-        ctx.params.renderTriangles(ctx.params.user_ptr, &paint, state.composite_operation, &state.scissor, ctx.fringeWidth, verts);
+        ctx.params.renderTriangles(ctx.params.user_ptr, &paint, state.composite_operation, &state.scissor, ctx.fringe_width, verts);
 
         ctx.draw_call_count += 1;
         ctx.text_tri_count += @intCast(u32, verts.len) / 3;
