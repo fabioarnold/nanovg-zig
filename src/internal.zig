@@ -19,7 +19,6 @@ const Font = nvg.Font;
 const NVG_INIT_FONTIMAGE_SIZE = 512;
 const NVG_MAX_FONTIMAGE_SIZE = 2048;
 
-const NVG_INIT_COMMANDS_SIZE = 256;
 const NVG_INIT_POINTS_SIZE = 128;
 const NVG_INIT_PATHS_SIZE = 16;
 const NVG_INIT_VERTS_SIZE = 256;
@@ -29,12 +28,10 @@ const NVG_KAPPA90 = 0.5522847493; // Length proportional to radius of a cubic be
 pub const Context = struct {
     allocator: Allocator,
     params: Params,
-    commands: []f32,
-    ccommands: u32 = NVG_INIT_COMMANDS_SIZE,
-    ncommands: u32 = 0,
+    commands: ArrayList(f32),
     commandx: f32 = 0,
     commandy: f32 = 0,
-    states: ArrayList(State) = undefined,
+    states: ArrayList(State),
     cache: PathCache,
     tess_tol: f32,
     dist_tol: f32,
@@ -53,7 +50,7 @@ pub const Context = struct {
         ctx.* = Context{
             .allocator = allocator,
             .params = params,
-            .commands = try allocator.alloc(f32, NVG_INIT_COMMANDS_SIZE),
+            .commands = ArrayList(f32).init(allocator),
             .states = ArrayList(State).init(allocator),
             .cache = try PathCache.init(allocator),
             .tess_tol = undefined,
@@ -64,6 +61,7 @@ pub const Context = struct {
         errdefer ctx.deinit();
 
         try ctx.states.ensureTotalCapacity(32);
+        try ctx.commands.ensureTotalCapacity(256);
 
         ctx.save();
         ctx.reset();
@@ -92,7 +90,7 @@ pub const Context = struct {
     }
 
     pub fn deinit(ctx: *Context) void {
-        ctx.allocator.free(ctx.commands);
+        ctx.commands.deinit();
         ctx.states.deinit();
         ctx.cache.deinit();
 
@@ -162,7 +160,7 @@ pub const Context = struct {
         state.font_id = c.FONS_INVALID;
     }
 
-    pub fn shape_antialias(ctx: *Context, enabled: bool) void {
+    pub fn shapeAntiAlias(ctx: *Context, enabled: bool) void {
         const state = ctx.getState();
         state.shape_antialias = enabled;
     }
@@ -347,12 +345,7 @@ pub const Context = struct {
     pub fn appendCommands(ctx: *Context, vals: []f32) void {
         const state = ctx.getState();
 
-        if (ctx.ncommands + vals.len > ctx.ccommands) {
-            const ccommands = ctx.ncommands + vals.len + ctx.ccommands / 2;
-            const commands = ctx.allocator.realloc(ctx.commands, ccommands) catch return;
-            ctx.commands = commands;
-            ctx.ccommands = @truncate(u32, ccommands);
-        }
+        ctx.commands.ensureUnusedCapacity(vals.len) catch return;
 
         if (Command.fromValue(vals[0]) != .close and Command.fromValue(vals[0]) != .winding) {
             ctx.commandx = vals[vals.len - 2];
@@ -382,8 +375,7 @@ pub const Context = struct {
             }
         }
 
-        std.mem.copy(f32, ctx.commands[ctx.ncommands..], vals);
-        ctx.ncommands += @intCast(u32, vals.len);
+        ctx.commands.appendSliceAssumeCapacity(vals);
     }
 
     fn tesselateBezier(ctx: *Context, x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32, level: u8, cornerType: PointFlag) void {
@@ -426,24 +418,24 @@ pub const Context = struct {
 
         // Flatten
         var i: u32 = 0;
-        while (i < ctx.ncommands) {
-            switch (Command.fromValue(ctx.commands[i])) {
+        while (i < ctx.commands.items.len) {
+            switch (Command.fromValue(ctx.commands.items[i])) {
                 .move_to => {
                     cache.addPath();
-                    const p = ctx.commands[i + 1 ..];
+                    const p = ctx.commands.items[i + 1 ..];
                     cache.addPoint(p[0], p[1], .corner, ctx.dist_tol);
                     i += 3;
                 },
                 .line_to => {
-                    const p = ctx.commands[i + 1 ..];
+                    const p = ctx.commands.items[i + 1 ..];
                     cache.addPoint(p[0], p[1], .corner, ctx.dist_tol);
                     i += 3;
                 },
                 .bezier_to => {
                     if (cache.lastPoint()) |last| {
-                        const cp1 = ctx.commands[i + 1 ..];
-                        const cp2 = ctx.commands[i + 3 ..];
-                        const p = ctx.commands[i + 5 ..];
+                        const cp1 = ctx.commands.items[i + 1 ..];
+                        const cp2 = ctx.commands.items[i + 3 ..];
+                        const p = ctx.commands.items[i + 5 ..];
                         ctx.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, .corner);
                     }
                     i += 7;
@@ -453,7 +445,7 @@ pub const Context = struct {
                     i += 1;
                 },
                 .winding => {
-                    cache.pathWinding(@intToEnum(nvg.Winding, @floatToInt(u2, ctx.commands[i + 1])));
+                    cache.pathWinding(@intToEnum(nvg.Winding, @floatToInt(u2, ctx.commands.items[i + 1])));
                     i += 2;
                 },
             }
@@ -832,7 +824,7 @@ pub const Context = struct {
     }
 
     pub fn beginPath(ctx: *Context) void {
-        ctx.ncommands = 0;
+        ctx.commands.clearRetainingCapacity();
         ctx.cache.clear();
     }
 
@@ -865,7 +857,7 @@ pub const Context = struct {
         const x0: f32 = ctx.commandx;
         const y0: f32 = ctx.commandy;
 
-        if (ctx.ncommands == 0) {
+        if (ctx.commands.items.len == 0) {
             return;
         }
 
@@ -923,7 +915,7 @@ pub const Context = struct {
     }
 
     pub fn arc(ctx: *Context, cx: f32, cy: f32, r: f32, a0: f32, a1: f32, dir: nvg.Winding) void {
-        const move: Command = if (ctx.ncommands > 0) .line_to else .move_to;
+        const move: Command = if (ctx.commands.items.len > 0) .line_to else .move_to;
 
         // Clamp angles
         var da = a1 - a0;
