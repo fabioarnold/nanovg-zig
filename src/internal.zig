@@ -17,13 +17,11 @@ const Font = nvg.Font;
 
 const NVG_INIT_FONTIMAGE_SIZE = 512;
 const NVG_MAX_FONTIMAGE_SIZE = 2048;
-const NVG_MAX_FONTIMAGES = 4;
 
 const NVG_INIT_COMMANDS_SIZE = 256;
 const NVG_INIT_POINTS_SIZE = 128;
 const NVG_INIT_PATHS_SIZE = 16;
 const NVG_INIT_VERTS_SIZE = 256;
-const NVG_MAX_STATES = 32;
 
 const NVG_KAPPA90 = 0.5522847493; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 
@@ -35,20 +33,20 @@ pub const Context = struct {
     ncommands: u32 = 0,
     commandx: f32 = 0,
     commandy: f32 = 0,
-    states: [NVG_MAX_STATES]State = undefined,
+    states: [32]State = undefined,
     nstates: u32 = 0,
     cache: PathCache,
-    tessTol: f32,
-    distTol: f32,
+    tess_tol: f32,
+    dist_tol: f32,
     fringeWidth: f32,
-    devicePxRatio: f32 = 1,
+    device_px_ratio: f32 = 1,
     fs: ?*c.FONScontext = null,
-    fontImages: [NVG_MAX_FONTIMAGES]i32 = [_]i32{0} ** NVG_MAX_FONTIMAGES,
-    fontImageIdx: u32 = 0,
-    drawCallCount: u32 = 0,
-    fillTriCount: u32 = 0,
-    strokeTriCount: u32 = 0,
-    textTriCount: u32 = 0,
+    font_images: [4]i32 = [_]i32{0} ** 4,
+    font_image_idx: u32 = 0,
+    draw_call_count: u32 = 0,
+    fill_tri_count: u32 = 0,
+    stroke_tri_count: u32 = 0,
+    text_tri_count: u32 = 0,
 
     pub fn init(allocator: Allocator, params: Params) !*Context {
         var ctx = try allocator.create(Context);
@@ -57,10 +55,10 @@ pub const Context = struct {
             .params = params,
             .commands = try allocator.alloc(f32, NVG_INIT_COMMANDS_SIZE),
             .cache = try PathCache.init(allocator),
-            .tessTol = undefined,
-            .distTol = undefined,
+            .tess_tol = undefined,
+            .dist_tol = undefined,
             .fringeWidth = undefined,
-            .devicePxRatio = undefined,
+            .device_px_ratio = undefined,
         };
         errdefer ctx.deinit();
 
@@ -69,23 +67,23 @@ pub const Context = struct {
 
         ctx.setDevicePixelRatio(1);
 
-        _ = ctx.params.renderCreate(ctx.params.userPtr); // TODO: handle error
+        _ = ctx.params.renderCreate(ctx.params.user_ptr); // TODO: handle error
 
-        var fontParams = std.mem.zeroes(c.FONSparams);
-        fontParams.width = NVG_INIT_FONTIMAGE_SIZE;
-        fontParams.height = NVG_INIT_FONTIMAGE_SIZE;
-        fontParams.flags = c.FONS_ZERO_TOPLEFT;
-        fontParams.renderCreate = null;
-        fontParams.renderUpdate = null;
-        fontParams.renderDraw = null;
-        fontParams.renderDelete = null;
-        fontParams.userPtr = null;
-        ctx.fs = c.fonsCreateInternal(&fontParams) orelse return error.CreateFontstashFailed;
+        var font_params = std.mem.zeroes(c.FONSparams);
+        font_params.width = NVG_INIT_FONTIMAGE_SIZE;
+        font_params.height = NVG_INIT_FONTIMAGE_SIZE;
+        font_params.flags = c.FONS_ZERO_TOPLEFT;
+        font_params.renderCreate = null;
+        font_params.renderUpdate = null;
+        font_params.renderDraw = null;
+        font_params.renderDelete = null;
+        font_params.userPtr = null;
+        ctx.fs = c.fonsCreateInternal(&font_params) orelse return error.CreateFontstashFailed;
 
         // Create font texture
-        ctx.fontImages[0] = ctx.params.renderCreateTexture(ctx.params.userPtr, .alpha, fontParams.width, fontParams.height, .{}, null);
-        if (ctx.fontImages[0] == 0) return error.CreateFontTextureFaild;
-        ctx.fontImageIdx = 0;
+        ctx.font_images[0] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, font_params.width, font_params.height, .{}, null);
+        if (ctx.font_images[0] == 0) return error.CreateFontTextureFaild;
+        ctx.font_image_idx = 0;
 
         return ctx;
     }
@@ -98,23 +96,23 @@ pub const Context = struct {
             c.fonsDeleteInternal(ctx.fs);
         }
 
-        for (ctx.fontImages) |*font_image| {
+        for (ctx.font_images) |*font_image| {
             if (font_image.* != 0) {
                 ctx.deleteImage(font_image.*);
                 font_image.* = 0;
             }
         }
 
-        _ = ctx.params.renderDelete(ctx.params.userPtr);
+        _ = ctx.params.renderDelete(ctx.params.user_ptr);
 
         ctx.allocator.destroy(ctx);
     }
 
     fn setDevicePixelRatio(ctx: *Context, ratio: f32) void {
-        ctx.tessTol = 0.25 / ratio;
-        ctx.distTol = 0.01 / ratio;
+        ctx.tess_tol = 0.25 / ratio;
+        ctx.dist_tol = 0.01 / ratio;
         ctx.fringeWidth = 1 / ratio;
-        ctx.devicePxRatio = ratio;
+        ctx.device_px_ratio = ratio;
     }
 
     pub fn getState(ctx: *Context) *State {
@@ -122,7 +120,7 @@ pub const Context = struct {
     }
 
     pub fn save(ctx: *Context) void {
-        if (ctx.nstates >= NVG_MAX_STATES) return;
+        if (ctx.nstates >= ctx.states.len) return;
         if (ctx.nstates > 0) ctx.states[ctx.nstates] = ctx.states[ctx.nstates - 1];
         ctx.nstates += 1;
     }
@@ -139,8 +137,8 @@ pub const Context = struct {
         setPaintColor(&state.fill, nvg.rgbaf(1, 1, 1, 1));
         setPaintColor(&state.stroke, nvg.rgbaf(0, 0, 0, 1));
 
-        state.compositeOperation = nvg.CompositeOperationState.initOperation(.source_over);
-        state.shapeAntiAlias = true;
+        state.composite_operation = nvg.CompositeOperationState.initOperation(.source_over);
+        state.shape_antialias = true;
         state.stroke_width = 1;
         state.miter_limit = 10;
         state.line_cap = .butt;
@@ -151,18 +149,18 @@ pub const Context = struct {
         state.scissor.extent[0] = -1;
         state.scissor.extent[1] = -1;
 
-        state.fontSize = 16;
-        state.letterSpacing = 0;
-        state.lineHeight = 1;
-        state.fontBlur = 0;
-        state.textAlign.horizontal = .left;
-        state.textAlign.vertical = .baseline;
-        state.fontId = c.FONS_INVALID;
+        state.font_size = 16;
+        state.letter_spacing = 0;
+        state.line_height = 1;
+        state.font_blur = 0;
+        state.text_align.horizontal = .left;
+        state.text_align.vertical = .baseline;
+        state.font_id = c.FONS_INVALID;
     }
 
-    pub fn shapeAntiAlias(ctx: *Context, enabled: bool) void {
+    pub fn shape_antialias(ctx: *Context, enabled: bool) void {
         const state = ctx.getState();
-        state.shapeAntiAlias = enabled;
+        state.shape_antialias = enabled;
     }
 
     pub fn strokeWidth(ctx: *Context, width: f32) void {
@@ -277,18 +275,18 @@ pub const Context = struct {
     }
 
     pub fn createImageRGBA(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.userPtr, .rgba, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) };
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) };
     }
 
     pub fn createImageAlpha(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.userPtr, .alpha, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) };
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) };
     }
 
     pub fn updateImage(ctx: *Context, image: Image, data: []const u8) void {
         var w: i32 = undefined;
         var h: i32 = undefined;
-        _ = ctx.params.renderGetTextureSize(ctx.params.userPtr, image.handle, &w, &h);
-        _ = ctx.params.renderUpdateTexture(ctx.params.userPtr, image.handle, 0, 0, w, h, data.ptr);
+        _ = ctx.params.renderGetTextureSize(ctx.params.user_ptr, image.handle, &w, &h);
+        _ = ctx.params.renderUpdateTexture(ctx.params.user_ptr, image.handle, 0, 0, w, h, data.ptr);
     }
 
     pub fn beginFrame(ctx: *Context, window_width: f32, window_height: f32, device_pixel_ratio: f32) void {
@@ -298,22 +296,22 @@ pub const Context = struct {
 
         ctx.setDevicePixelRatio(device_pixel_ratio);
 
-        ctx.params.renderViewport(ctx.params.userPtr, window_width, window_height, device_pixel_ratio);
+        ctx.params.renderViewport(ctx.params.user_ptr, window_width, window_height, device_pixel_ratio);
 
-        ctx.drawCallCount = 0;
-        ctx.fillTriCount = 0;
-        ctx.strokeTriCount = 0;
-        ctx.textTriCount = 0;
+        ctx.draw_call_count = 0;
+        ctx.fill_tri_count = 0;
+        ctx.stroke_tri_count = 0;
+        ctx.text_tri_count = 0;
     }
 
     pub fn cancelFrame(ctx: *Context) void {
-        ctx.params.renderCancel(ctx.params.userPtr);
+        ctx.params.renderCancel(ctx.params.user_ptr);
     }
 
     pub fn endFrame(ctx: *Context) void {
-        ctx.params.renderFlush(ctx.params.userPtr);
-        if (ctx.fontImageIdx != 0) {
-            const fontImage = ctx.fontImages[ctx.fontImageIdx];
+        ctx.params.renderFlush(ctx.params.user_ptr);
+        if (ctx.font_image_idx != 0) {
+            const fontImage = ctx.font_images[ctx.font_image_idx];
             // delete images that smaller than current one
             if (fontImage == 0)
                 return;
@@ -322,23 +320,23 @@ pub const Context = struct {
             ctx.imageSize(fontImage, &iw, &ih);
             var i: u32 = 0;
             var j: u32 = 0;
-            while (i < ctx.fontImageIdx) : (i += 1) {
-                if (ctx.fontImages[i] != 0) {
+            while (i < ctx.font_image_idx) : (i += 1) {
+                if (ctx.font_images[i] != 0) {
                     var nw: i32 = undefined;
                     var nh: i32 = undefined;
-                    ctx.imageSize(ctx.fontImages[i], &nw, &nh);
+                    ctx.imageSize(ctx.font_images[i], &nw, &nh);
                     if (nw < iw or nh < ih) {
-                        ctx.deleteImage(ctx.fontImages[i]);
+                        ctx.deleteImage(ctx.font_images[i]);
                     } else {
-                        ctx.fontImages[j] = ctx.fontImages[i];
+                        ctx.font_images[j] = ctx.font_images[i];
                         j += 1;
                     }
                 }
             }
             // make current font image to first
-            ctx.fontImages[j] = ctx.fontImages[0];
-            ctx.fontImages[0] = fontImage;
-            ctx.fontImageIdx = 0;
+            ctx.font_images[j] = ctx.font_images[0];
+            ctx.font_images[0] = fontImage;
+            ctx.font_image_idx = 0;
         }
     }
 
@@ -402,8 +400,8 @@ pub const Context = struct {
         const d2 = @fabs(((x2 - x4) * dy - (y2 - y4) * dx));
         const d3 = @fabs(((x3 - x4) * dy - (y3 - y4) * dx));
 
-        if ((d2 + d3) * (d2 + d3) < ctx.tessTol * (dx * dx + dy * dy)) {
-            ctx.cache.addPoint(x4, y4, cornerType, ctx.distTol);
+        if ((d2 + d3) * (d2 + d3) < ctx.tess_tol * (dx * dx + dy * dy)) {
+            ctx.cache.addPoint(x4, y4, cornerType, ctx.dist_tol);
             return;
         }
 
@@ -429,12 +427,12 @@ pub const Context = struct {
                 .move_to => {
                     cache.addPath();
                     const p = ctx.commands[i + 1 ..];
-                    cache.addPoint(p[0], p[1], .corner, ctx.distTol);
+                    cache.addPoint(p[0], p[1], .corner, ctx.dist_tol);
                     i += 3;
                 },
                 .line_to => {
                     const p = ctx.commands[i + 1 ..];
-                    cache.addPoint(p[0], p[1], .corner, ctx.distTol);
+                    cache.addPoint(p[0], p[1], .corner, ctx.dist_tol);
                     i += 3;
                 },
                 .bezier_to => {
@@ -469,7 +467,7 @@ pub const Context = struct {
             // If the first and last points are the same, remove the last, mark as closed path.
             var p0 = &pts[path.count - 1];
             var p1 = &pts[0];
-            if (ptEquals(p0.x, p0.y, p1.x, p1.y, ctx.distTol)) {
+            if (ptEquals(p0.x, p0.y, p1.x, p1.y, ctx.dist_tol)) {
                 path.count -= 1;
                 pts = cache.points[path.first..][0..path.count];
                 p0 = &pts[path.count - 1];
@@ -705,7 +703,7 @@ pub const Context = struct {
         var @"u0": f32 = 0;
         var @"u1": f32 = 1;
         var w = width;
-        const ncap = curveDivs(w, std.math.pi, ctx.tessTol); // Calculate divisions per half circle.
+        const ncap = curveDivs(w, std.math.pi, ctx.tess_tol); // Calculate divisions per half circle.
 
         w += aa * 0.5;
 
@@ -868,10 +866,10 @@ pub const Context = struct {
         }
 
         // Handle degenerate cases.
-        if (ptEquals(x0, y0, x1, y1, ctx.distTol) or
-            ptEquals(x1, y1, x2, y2, ctx.distTol) or
-            distPtSeg(x1, y1, x0, y0, x2, y2) < ctx.distTol * ctx.distTol or
-            radius < ctx.distTol)
+        if (ptEquals(x0, y0, x1, y1, ctx.dist_tol) or
+            ptEquals(x1, y1, x2, y2, ctx.dist_tol) or
+            distPtSeg(x1, y1, x0, y0, x2, y2) < ctx.dist_tol * ctx.dist_tol or
+            radius < ctx.dist_tol)
         {
             ctx.lineTo(x1, y1);
             return;
@@ -1036,11 +1034,11 @@ pub const Context = struct {
     }
 
     pub fn imageSize(ctx: *Context, image: i32, w: *i32, h: *i32) void {
-        _ = ctx.params.renderGetTextureSize(ctx.params.userPtr, image, w, h);
+        _ = ctx.params.renderGetTextureSize(ctx.params.user_ptr, image, w, h);
     }
 
     pub fn deleteImage(ctx: *Context, image: i32) void {
-        _ = ctx.params.renderDeleteTexture(ctx.params.userPtr, image);
+        _ = ctx.params.renderDeleteTexture(ctx.params.user_ptr, image);
     }
 
     pub fn linearGradient(ctx: *Context, sx: f32, sy: f32, ex: f32, ey: f32, icol: Color, ocol: Color) Paint {
@@ -1230,20 +1228,20 @@ pub const Context = struct {
 
         ctx.flattenPaths();
 
-        if (ctx.params.edgeAntiAlias and state.shapeAntiAlias) {
+        if (ctx.params.edge_antialias and state.shape_antialias) {
             _ = ctx.expandFill(ctx.fringeWidth, .miter, 2.4);
         } else {
             _ = ctx.expandFill(0.0, .miter, 2.4);
         }
 
-        ctx.params.renderFill(ctx.params.userPtr, &fill_paint, state.compositeOperation, &state.scissor, ctx.fringeWidth, ctx.cache.bounds, ctx.cache.paths[0..ctx.cache.npaths]);
+        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringeWidth, ctx.cache.bounds, ctx.cache.paths[0..ctx.cache.npaths]);
 
         // Count triangles
         for (ctx.cache.paths[0..ctx.cache.npaths]) |path| {
             // console.log("{} path nfill={}, nstroke={}", .{i, path.nfill, path.nstroke});
-            if (path.nfill >= 2) ctx.fillTriCount += path.nfill - 2;
-            if (path.nstroke >= 2) ctx.fillTriCount += path.nstroke - 2;
-            ctx.drawCallCount += 2;
+            if (path.nfill >= 2) ctx.fill_tri_count += path.nfill - 2;
+            if (path.nstroke >= 2) ctx.fill_tri_count += path.nstroke - 2;
+            ctx.draw_call_count += 2;
         }
     }
 
@@ -1268,18 +1266,18 @@ pub const Context = struct {
 
         ctx.flattenPaths();
 
-        if (ctx.params.edgeAntiAlias and state.shapeAntiAlias) {
+        if (ctx.params.edge_antialias and state.shape_antialias) {
             _ = ctx.expandStroke(stroke_width * 0.5, ctx.fringeWidth, state.line_cap, state.line_join, state.miter_limit);
         } else {
             _ = ctx.expandStroke(stroke_width * 0.5, 0, state.line_cap, state.line_join, state.miter_limit);
         }
 
-        ctx.params.renderStroke(ctx.params.userPtr, &stroke_paint, state.compositeOperation, &state.scissor, ctx.fringeWidth, stroke_width, ctx.cache.paths[0..ctx.cache.npaths]);
+        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringeWidth, stroke_width, ctx.cache.paths[0..ctx.cache.npaths]);
 
         // Count triangles
         for (ctx.cache.paths[0..ctx.cache.npaths]) |path| {
-            if (path.nstroke >= 2) ctx.fillTriCount += path.nstroke - 2;
-            ctx.drawCallCount += 2;
+            if (path.nstroke >= 2) ctx.fill_tri_count += path.nstroke - 2;
+            ctx.draw_call_count += 2;
         }
     }
 
@@ -1294,44 +1292,44 @@ pub const Context = struct {
 
     pub fn fontSize(ctx: *Context, size: f32) void {
         const state = ctx.getState();
-        state.fontSize = size;
+        state.font_size = size;
     }
 
     pub fn fontBlur(ctx: *Context, blur: f32) void {
         const state = ctx.getState();
-        state.fontBlur = blur;
+        state.font_blur = blur;
     }
 
     pub fn textLetterSpacing(ctx: *Context, spacing: f32) void {
         const state = ctx.getState();
-        state.letterSpacing = spacing;
+        state.letter_spacing = spacing;
     }
 
     pub fn textLineHeight(ctx: *Context, line_height: f32) void {
         const state = ctx.getState();
-        state.lineHeight = line_height;
+        state.line_height = line_height;
     }
 
     pub fn textAlign(ctx: *Context, text_align: nvg.TextAlign) void {
         const state = ctx.getState();
-        state.textAlign = text_align;
+        state.text_align = text_align;
     }
 
     pub fn fontFaceId(ctx: *Context, font: Font) void {
         const state = ctx.getState();
-        state.fontId = font.handle;
+        state.font_id = font.handle;
     }
 
     pub fn fontFace(ctx: *Context, font: [:0]const u8) void {
         const state = ctx.getState();
-        state.fontId = c.fonsGetFontByName(ctx.fs, font.ptr);
+        state.font_id = c.fonsGetFontByName(ctx.fs, font.ptr);
     }
 
     fn flushTextTexture(ctx: Context) void {
         var dirty: [4]i32 = undefined;
 
         if (c.fonsValidateTexture(ctx.fs, &dirty[0]) != 0) {
-            const fontImage = ctx.fontImages[ctx.fontImageIdx];
+            const fontImage = ctx.font_images[ctx.font_image_idx];
             // Update texture
             if (fontImage != 0) {
                 var iw: i32 = undefined;
@@ -1341,7 +1339,7 @@ pub const Context = struct {
                 const y = dirty[1];
                 const w = dirty[2] - dirty[0];
                 const h = dirty[3] - dirty[1];
-                _ = ctx.params.renderUpdateTexture(ctx.params.userPtr, fontImage, x, y, w, h, data);
+                _ = ctx.params.renderUpdateTexture(ctx.params.user_ptr, fontImage, x, y, w, h, data);
             }
         }
     }
@@ -1350,13 +1348,13 @@ pub const Context = struct {
         var iw: i32 = undefined;
         var ih: i32 = undefined;
         ctx.flushTextTexture();
-        if (ctx.fontImageIdx >= NVG_MAX_FONTIMAGES - 1)
+        if (ctx.font_image_idx + 1 >= ctx.font_images.len)
             return false;
         // if next fontImage already have a texture
-        if (ctx.fontImages[ctx.fontImageIdx + 1] != 0) {
-            ctx.imageSize(ctx.fontImages[ctx.fontImageIdx + 1], &iw, &ih);
+        if (ctx.font_images[ctx.font_image_idx + 1] != 0) {
+            ctx.imageSize(ctx.font_images[ctx.font_image_idx + 1], &iw, &ih);
         } else { // calculate the new font image size and create it.
-            ctx.imageSize(ctx.fontImages[ctx.fontImageIdx], &iw, &ih);
+            ctx.imageSize(ctx.font_images[ctx.font_image_idx], &iw, &ih);
             if (iw > ih) {
                 ih *= 2;
             } else {
@@ -1366,9 +1364,9 @@ pub const Context = struct {
                 iw = NVG_MAX_FONTIMAGE_SIZE;
                 ih = NVG_MAX_FONTIMAGE_SIZE;
             }
-            ctx.fontImages[ctx.fontImageIdx + 1] = ctx.params.renderCreateTexture(ctx.params.userPtr, .alpha, iw, ih, .{}, null);
+            ctx.font_images[ctx.font_image_idx + 1] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, iw, ih, .{}, null);
         }
-        ctx.fontImageIdx += 1;
+        ctx.font_image_idx += 1;
         _ = c.fonsResetAtlas(ctx.fs, iw, ih);
         return true;
     }
@@ -1378,31 +1376,31 @@ pub const Context = struct {
         var paint = state.fill;
 
         // Render triangles.
-        paint.image.handle = ctx.fontImages[ctx.fontImageIdx];
+        paint.image.handle = ctx.font_images[ctx.font_image_idx];
 
         // Apply global alpha
         paint.inner_color.a *= state.alpha;
         paint.outer_color.a *= state.alpha;
 
-        ctx.params.renderTriangles(ctx.params.userPtr, &paint, state.compositeOperation, &state.scissor, ctx.fringeWidth, verts);
+        ctx.params.renderTriangles(ctx.params.user_ptr, &paint, state.composite_operation, &state.scissor, ctx.fringeWidth, verts);
 
-        ctx.drawCallCount += 1;
-        ctx.textTriCount += @intCast(u32, verts.len) / 3;
+        ctx.draw_call_count += 1;
+        ctx.text_tri_count += @intCast(u32, verts.len) / 3;
     }
 
     pub fn text(ctx: *Context, x: f32, y: f32, string: []const u8) f32 {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.devicePxRatio;
+        const s = state.getFontScale() * ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
-        if (state.fontId == c.FONS_INVALID) return x;
+        if (state.font_id == c.FONS_INVALID) return x;
 
-        c.fonsSetSize(ctx.fs, state.fontSize * s);
-        c.fonsSetSpacing(ctx.fs, state.letterSpacing * s);
-        c.fonsSetBlur(ctx.fs, state.fontBlur * s);
-        c.fonsSetAlign(ctx.fs, state.textAlign.toInt());
-        c.fonsSetFont(ctx.fs, state.fontId);
+        c.fonsSetSize(ctx.fs, state.font_size * s);
+        c.fonsSetSpacing(ctx.fs, state.letter_spacing * s);
+        c.fonsSetBlur(ctx.fs, state.font_blur * s);
+        c.fonsSetAlign(ctx.fs, state.text_align.toInt());
+        c.fonsSetFont(ctx.fs, state.font_id);
 
         const cverts = @intCast(u32, std.math.max(2, string.len) * 6); // conservative estimate.
         var verts = ctx.cache.allocTempVerts(cverts) orelse return x;
@@ -1460,13 +1458,13 @@ pub const Context = struct {
     pub fn textBox(ctx: *Context, x: f32, y: f32, break_row_width: f32, string: []const u8) void {
         const state = ctx.getState();
 
-        if (state.fontId == c.FONS_INVALID) return;
+        if (state.font_id == c.FONS_INVALID) return;
 
         var lineh: f32 = undefined;
         ctx.textMetrics(null, null, &lineh);
 
-        const oldAlign = state.textAlign;
-        state.textAlign.horizontal = .left;
+        const oldAlign = state.text_align;
+        state.text_align.horizontal = .left;
 
         var ty = y;
         var rows: [2]nvg.TextRow = undefined;
@@ -1483,27 +1481,27 @@ pub const Context = struct {
                     else => x,
                 };
                 _ = ctx.text(tx, ty, row.text);
-                ty += lineh * state.lineHeight;
+                ty += lineh * state.line_height;
             }
             start = rows[nrows - 1].next;
         }
 
-        state.textAlign = oldAlign;
+        state.text_align = oldAlign;
     }
 
     pub fn textGlyphPositions(ctx: *Context, x: f32, y: f32, string: []const u8, positions: []nvg.GlyphPosition) usize {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.devicePxRatio;
+        const s = state.getFontScale() * ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
-        if (state.fontId == c.FONS_INVALID) return 0;
+        if (state.font_id == c.FONS_INVALID) return 0;
 
-        c.fonsSetSize(ctx.fs, state.fontSize * s);
-        c.fonsSetSpacing(ctx.fs, state.letterSpacing * s);
-        c.fonsSetBlur(ctx.fs, state.fontBlur * s);
-        c.fonsSetAlign(ctx.fs, state.textAlign.toInt());
-        c.fonsSetFont(ctx.fs, state.fontId);
+        c.fonsSetSize(ctx.fs, state.font_size * s);
+        c.fonsSetSpacing(ctx.fs, state.letter_spacing * s);
+        c.fonsSetBlur(ctx.fs, state.font_blur * s);
+        c.fonsSetAlign(ctx.fs, state.text_align.toInt());
+        c.fonsSetFont(ctx.fs, state.font_id);
 
         var npos: usize = 0;
         var iter: c.FONStextIter = undefined;
@@ -1537,20 +1535,20 @@ pub const Context = struct {
 
     pub fn textBreakLines(ctx: *Context, string: []const u8, break_row_width_arg: f32, rows: []nvg.TextRow) usize {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.devicePxRatio;
+        const s = state.getFontScale() * ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
         if (rows.len == 0) return 0;
-        if (state.fontId == c.FONS_INVALID) return 0;
+        if (state.font_id == c.FONS_INVALID) return 0;
 
         if (string.len == 0) return 0;
 
-        c.fonsSetSize(ctx.fs, state.fontSize * s);
-        c.fonsSetSpacing(ctx.fs, state.letterSpacing * s);
-        c.fonsSetBlur(ctx.fs, state.fontBlur * s);
-        c.fonsSetAlign(ctx.fs, state.textAlign.toInt());
-        c.fonsSetFont(ctx.fs, state.fontId);
+        c.fonsSetSize(ctx.fs, state.font_size * s);
+        c.fonsSetSpacing(ctx.fs, state.letter_spacing * s);
+        c.fonsSetBlur(ctx.fs, state.font_blur * s);
+        c.fonsSetAlign(ctx.fs, state.text_align.toInt());
+        c.fonsSetFont(ctx.fs, state.font_id);
 
         const break_row_width = break_row_width_arg * s;
         var nrows: usize = 0;
@@ -1731,17 +1729,17 @@ pub const Context = struct {
 
     pub fn textBounds(ctx: *Context, x: f32, y: f32, string: []const u8, bounds: ?*[4]f32) f32 {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.devicePxRatio;
+        const s = state.getFontScale() * ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
-        if (state.fontId == c.FONS_INVALID) return 0;
+        if (state.font_id == c.FONS_INVALID) return 0;
 
-        c.fonsSetSize(ctx.fs, state.fontSize * s);
-        c.fonsSetSpacing(ctx.fs, state.letterSpacing * s);
-        c.fonsSetBlur(ctx.fs, state.fontBlur * s);
-        c.fonsSetAlign(ctx.fs, state.textAlign.toInt());
-        c.fonsSetFont(ctx.fs, state.fontId);
+        c.fonsSetSize(ctx.fs, state.font_size * s);
+        c.fonsSetSpacing(ctx.fs, state.letter_spacing * s);
+        c.fonsSetBlur(ctx.fs, state.font_blur * s);
+        c.fonsSetAlign(ctx.fs, state.text_align.toInt());
+        c.fonsSetFont(ctx.fs, state.font_id);
 
         const width = c.fonsTextBounds(ctx.fs, x * s, y * s, string.ptr, end, if (bounds == null) null else &(bounds.?[0]));
         if (bounds) |b| {
@@ -1757,10 +1755,10 @@ pub const Context = struct {
 
     pub fn textBoxBounds(ctx: *Context, x_arg: f32, y_arg: f32, break_row_width: f32, string_arg: []const u8, bounds: ?*[4]f32) void {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.devicePxRatio;
+        const s = state.getFontScale() * ctx.device_px_ratio;
         const invs = 1.0 / s;
 
-        if (state.fontId == c.FONS_INVALID) {
+        if (state.font_id == c.FONS_INVALID) {
             if (bounds) |b| {
                 b[0] = 0;
                 b[1] = 0;
@@ -1770,17 +1768,17 @@ pub const Context = struct {
             return;
         }
 
-        const oldAlign = state.textAlign;
-        state.textAlign.horizontal = .left;
+        const oldAlign = state.text_align;
+        state.text_align.horizontal = .left;
 
         var lineh: f32 = undefined;
         ctx.textMetrics(null, null, &lineh);
 
-        c.fonsSetSize(ctx.fs, state.fontSize * s);
-        c.fonsSetSpacing(ctx.fs, state.letterSpacing * s);
-        c.fonsSetBlur(ctx.fs, state.fontBlur * s);
-        c.fonsSetAlign(ctx.fs, state.textAlign.toInt());
-        c.fonsSetFont(ctx.fs, state.fontId);
+        c.fonsSetSize(ctx.fs, state.font_size * s);
+        c.fonsSetSpacing(ctx.fs, state.letter_spacing * s);
+        c.fonsSetBlur(ctx.fs, state.font_blur * s);
+        c.fonsSetAlign(ctx.fs, state.text_align.toInt());
+        c.fonsSetFont(ctx.fs, state.font_id);
         var rminy: f32 = 0;
         var rmaxy: f32 = 0;
         c.fonsLineBounds(ctx.fs, 0, &rminy, &rmaxy);
@@ -1817,12 +1815,12 @@ pub const Context = struct {
                 miny = std.math.min(miny, y + rminy);
                 maxy = std.math.max(maxy, y + rmaxy);
 
-                y += lineh * state.lineHeight;
+                y += lineh * state.line_height;
             }
             string = rows[nrows - 1].next;
         }
 
-        state.textAlign = oldAlign;
+        state.text_align = oldAlign;
 
         if (bounds) |b| {
             b[0] = minx;
@@ -1834,16 +1832,16 @@ pub const Context = struct {
 
     pub fn textMetrics(ctx: *Context, ascender: ?*f32, descender: ?*f32, lineh: ?*f32) void {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.devicePxRatio;
+        const s = state.getFontScale() * ctx.device_px_ratio;
         const invs = 1.0 / s;
 
-        if (state.fontId == c.FONS_INVALID) return;
+        if (state.font_id == c.FONS_INVALID) return;
 
-        c.fonsSetSize(ctx.fs, state.fontSize * s);
-        c.fonsSetSpacing(ctx.fs, state.letterSpacing * s);
-        c.fonsSetBlur(ctx.fs, state.fontBlur * s);
-        c.fonsSetAlign(ctx.fs, state.textAlign.toInt());
-        c.fonsSetFont(ctx.fs, state.fontId);
+        c.fonsSetSize(ctx.fs, state.font_size * s);
+        c.fonsSetSpacing(ctx.fs, state.letter_spacing * s);
+        c.fonsSetBlur(ctx.fs, state.font_blur * s);
+        c.fonsSetAlign(ctx.fs, state.text_align.toInt());
+        c.fonsSetFont(ctx.fs, state.font_id);
 
         c.fonsVertMetrics(ctx.fs, ascender, descender, lineh);
         if (ascender != null)
@@ -1918,8 +1916,8 @@ pub const Path = struct {
 };
 
 pub const Params = struct {
-    userPtr: *anyopaque,
-    edgeAntiAlias: bool,
+    user_ptr: *anyopaque,
+    edge_antialias: bool,
     renderCreate: fn (uptr: *anyopaque) i32,
     renderCreateTexture: fn (uptr: *anyopaque, tex_type: TextureType, w: i32, h: i32, image_flags: ImageFlags, data: ?[*]const u8) i32,
     renderDeleteTexture: fn (uptr: *anyopaque, image: i32) i32,
@@ -1935,8 +1933,8 @@ pub const Params = struct {
 };
 
 const State = struct {
-    compositeOperation: nvg.CompositeOperationState,
-    shapeAntiAlias: bool,
+    composite_operation: nvg.CompositeOperationState,
+    shape_antialias: bool,
     fill: Paint,
     stroke: Paint,
     stroke_width: f32,
@@ -1946,12 +1944,12 @@ const State = struct {
     alpha: f32,
     xform: [6]f32,
     scissor: Scissor,
-    fontSize: f32,
-    letterSpacing: f32,
-    lineHeight: f32,
-    fontBlur: f32,
-    textAlign: nvg.TextAlign,
-    fontId: i32,
+    font_size: f32,
+    letter_spacing: f32,
+    line_height: f32,
+    font_blur: f32,
+    text_align: nvg.TextAlign,
+    font_id: i32,
 
     fn getFontScale(state: State) f32 {
         return std.math.min(quantize(getAverageScale(state.xform), 0.01), 4.0);
@@ -2040,12 +2038,12 @@ const PathCache = struct {
         return null;
     }
 
-    fn addPoint(cache: *PathCache, x: f32, y: f32, flags: PointFlag, distTol: f32) void {
+    fn addPoint(cache: *PathCache, x: f32, y: f32, flags: PointFlag, dist_tol: f32) void {
         const path = cache.lastPath() orelse return;
 
         if (path.count > 0 and cache.npoints > 0) {
             const pt = cache.lastPoint().?;
-            if (ptEquals(pt.x, pt.y, x, y, distTol)) {
+            if (ptEquals(pt.x, pt.y, x, y, dist_tol)) {
                 pt.flags |= @enumToInt(flags);
                 return;
             }

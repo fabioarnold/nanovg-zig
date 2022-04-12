@@ -25,8 +25,8 @@ pub fn init(allocator: Allocator, options: Options) !nvg {
     const gl_context = try GLContext.init(allocator, options);
 
     const params = internal.Params{
-        .userPtr = gl_context,
-        .edgeAntiAlias = options.antialias,
+        .user_ptr = gl_context,
+        .edge_antialias = options.antialias,
         .renderCreate = renderCreate,
         .renderCreateTexture = renderCreateTexture,
         .renderDeleteTexture = renderDeleteTexture,
@@ -714,7 +714,7 @@ fn renderFlush(uptr: *anyopaque) void {
     ctx.uniforms.clearRetainingCapacity();
 }
 
-fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, compositeOperation: nvg.CompositeOperationState, scissor: *internal.Scissor, fringe: f32, bounds: [4]f32, paths: []const internal.Path) void {
+fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.CompositeOperationState, scissor: *internal.Scissor, fringe: f32, bounds: [4]f32, paths: []const internal.Path) void {
     const ctx = GLContext.castPtr(uptr);
 
     const call = ctx.calls.addOne() catch return;
@@ -731,7 +731,7 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, compositeOperation: nvg.Compo
     call.path_count = @intCast(u32, paths.len);
     call.image = paint.image.handle;
     call.colormap = paint.colormap.handle;
-    call.blend_func = Blend.fromOperation(compositeOperation);
+    call.blend_func = Blend.fromOperation(composite_operation);
 
     // Allocate vertices for all the paths.
     const maxverts = maxVertCount(paths) + call.triangle_count;
@@ -778,7 +778,7 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, compositeOperation: nvg.Compo
     }
 }
 
-fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, compositeOperation: nvg.CompositeOperationState, scissor: *internal.Scissor, fringe: f32, strokeWidth: f32, paths: []const internal.Path) void {
+fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.CompositeOperationState, scissor: *internal.Scissor, fringe: f32, strokeWidth: f32, paths: []const internal.Path) void {
     const ctx = GLContext.castPtr(uptr);
 
     const call = ctx.calls.addOne() catch return;
@@ -790,7 +790,7 @@ fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, compositeOperation: nvg.Com
     call.path_count = @intCast(u32, paths.len);
     call.image = paint.image.handle;
     call.colormap = paint.colormap.handle;
-    call.blend_func = Blend.fromOperation(compositeOperation);
+    call.blend_func = Blend.fromOperation(composite_operation);
 
     // Allocate vertices for all the paths.
     const maxverts = maxVertCount(paths);
