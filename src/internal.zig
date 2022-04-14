@@ -413,7 +413,7 @@ pub const Context = struct {
     fn flattenPaths(ctx: *Context) void {
         const cache = &ctx.cache;
 
-        if (cache.npaths > 0)
+        if (cache.paths.items.len > 0)
             return;
 
         // Flatten
@@ -457,15 +457,15 @@ pub const Context = struct {
         cache.bounds[3] = -1e6;
 
         // Calculate the direction and length of line segments.
-        for (cache.paths[0..cache.npaths]) |*path| {
-            var pts = cache.points[path.first..][0..path.count];
+        for (cache.paths.items) |*path| {
+            var pts = cache.points.items[path.first..][0..path.count];
 
             // If the first and last points are the same, remove the last, mark as closed path.
             var p0 = &pts[path.count - 1];
             var p1 = &pts[0];
             if (ptEquals(p0.x, p0.y, p1.x, p1.y, ctx.dist_tol)) {
                 path.count -= 1;
-                pts = cache.points[path.first..][0..path.count];
+                pts.len -= 1;
                 p0 = &pts[path.count - 1];
                 path.closed = true;
             }
@@ -503,10 +503,8 @@ pub const Context = struct {
         if (w > 0.0) iw = 1.0 / w;
 
         // Calculate which joins needs extra vertices to append, and gather vertex count.
-        var i: u32 = 0;
-        while (i < cache.npaths) : (i += 1) {
-            const path = &cache.paths[i];
-            const pts = cache.points[path.first..];
+        for (cache.paths.items) |*path| {
+            const pts = cache.points.items[path.first..];
             var p0 = &pts[path.count - 1];
             var p1 = &pts[0];
             var nleft: u32 = 0;
@@ -527,8 +525,8 @@ pub const Context = struct {
                 const dmr2 = p1.dmx * p1.dmx + p1.dmy * p1.dmy;
                 if (dmr2 > 0.000001) {
                     var s = 1.0 / dmr2;
-                    if (s > 600.0) {
-                        s = 600.0;
+                    if (s > 600) {
+                        s = 600;
                     }
                     p1.dmx *= s;
                     p1.dmy *= s;
@@ -574,9 +572,7 @@ pub const Context = struct {
 
         // Calculate max vertex usage.
         var cverts: u32 = 0;
-        var i: u32 = 0;
-        while (i < cache.npaths) : (i += 1) {
-            const path = &cache.paths[i];
+        for (cache.paths.items) |path| {
             cverts += path.count + path.nbevel + 1;
             if (fringe)
                 cverts += (path.count + path.nbevel * 5 + 1) * 2; // plus one for loop
@@ -584,12 +580,10 @@ pub const Context = struct {
 
         var verts = cache.allocTempVerts(cverts) orelse return 0;
 
-        const convex = cache.npaths == 1 and cache.paths[0].convex;
+        const convex = cache.paths.items.len == 1 and cache.paths.items[0].convex;
 
-        i = 0;
-        while (i < cache.npaths) : (i += 1) {
-            const path = &cache.paths[i];
-            const pts = cache.points[path.first..];
+        for (cache.paths.items) |*path| {
+            const pts = cache.points.items[path.first..][0..path.count];
 
             // Calculate shape vertices.
             const woff = 0.5 * aa;
@@ -713,9 +707,7 @@ pub const Context = struct {
 
         // Calculate max vertex usage.
         var cverts: u32 = 0;
-        var i: u32 = 0;
-        while (i < cache.npaths) : (i += 1) {
-            const path = &cache.paths[i];
+        for (cache.paths.items) |path| {
             const loop = path.closed;
             if (line_join == .round) {
                 cverts += (path.count + path.nbevel * (ncap + 2) + 1) * 2; // plus one for loop
@@ -734,10 +726,8 @@ pub const Context = struct {
 
         var verts = cache.allocTempVerts(cverts) orelse return 0;
 
-        i = 0;
-        while (i < cache.npaths) : (i += 1) {
-            const path = &cache.paths[i];
-            const pts = cache.points[path.first..];
+        for (cache.paths.items) |*path| {
+            const pts = cache.points.items[path.first..][0..path.count];
 
             path.fill = &.{};
             path.nfill = 0;
@@ -795,7 +785,6 @@ pub const Context = struct {
                 }
                 p0 = p1;
             }
-            p1 = &pts[j];
 
             if (loop) {
                 // Loop it
@@ -804,6 +793,7 @@ pub const Context = struct {
                 dst[dst_i].set(verts[1].x, verts[1].y, @"u1", 1);
                 dst_i += 1;
             } else {
+                p1 = &pts[j];
                 // Add cap
                 var dx = p1.x - p0.x;
                 var dy = p1.y - p0.y;
@@ -1230,10 +1220,10 @@ pub const Context = struct {
             _ = ctx.expandFill(0.0, .miter, 2.4);
         }
 
-        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths[0..ctx.cache.npaths]);
+        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths.items);
 
         // Count triangles
-        for (ctx.cache.paths[0..ctx.cache.npaths]) |path| {
+        for (ctx.cache.paths.items) |path| {
             // console.log("{} path nfill={}, nstroke={}", .{i, path.nfill, path.nstroke});
             if (path.nfill >= 2) ctx.fill_tri_count += path.nfill - 2;
             if (path.nstroke >= 2) ctx.fill_tri_count += path.nstroke - 2;
@@ -1268,10 +1258,10 @@ pub const Context = struct {
             _ = ctx.expandStroke(stroke_width * 0.5, 0, state.line_cap, state.line_join, state.miter_limit);
         }
 
-        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringe_width, stroke_width, ctx.cache.paths[0..ctx.cache.npaths]);
+        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringe_width, stroke_width, ctx.cache.paths.items);
 
         // Count triangles
-        for (ctx.cache.paths[0..ctx.cache.npaths]) |path| {
+        for (ctx.cache.paths.items) |path| {
             if (path.nstroke >= 2) ctx.fill_tri_count += path.nstroke - 2;
             ctx.draw_call_count += 2;
         }
@@ -1965,100 +1955,78 @@ const Point = struct {
 
 const PathCache = struct {
     allocator: Allocator,
-    points: []Point,
-    npoints: u32 = 0,
-    cpoints: u32 = NVG_INIT_POINTS_SIZE,
-    paths: []Path,
-    npaths: u32 = 0,
-    cpaths: u32 = NVG_INIT_PATHS_SIZE,
-    verts: []Vertex,
-    nverts: u32 = 0,
-    cverts: u32 = NVG_INIT_VERTS_SIZE,
+    points: ArrayList(Point),
+    paths: ArrayList(Path),
+    verts: ArrayList(Vertex),
     bounds: [4]f32 = [_]f32{0} ** 4,
 
     fn init(allocator: Allocator) !PathCache {
         return PathCache{
             .allocator = allocator,
-            .points = try allocator.alloc(Point, NVG_INIT_POINTS_SIZE),
-            .paths = try allocator.alloc(Path, NVG_INIT_PATHS_SIZE),
-            .verts = try allocator.alloc(Vertex, NVG_INIT_VERTS_SIZE),
+            .points = try ArrayList(Point).initCapacity(allocator, NVG_INIT_POINTS_SIZE),
+            .paths = try ArrayList(Path).initCapacity(allocator, NVG_INIT_PATHS_SIZE),
+            .verts = try ArrayList(Vertex).initCapacity(allocator, NVG_INIT_VERTS_SIZE),
         };
     }
 
     fn deinit(cache: *PathCache) void {
-        cache.allocator.free(cache.points);
-        cache.allocator.free(cache.paths);
-        cache.allocator.free(cache.verts);
+        cache.points.deinit();
+        cache.paths.deinit();
+        cache.verts.deinit();
     }
 
     pub fn clear(cache: *PathCache) void {
-        cache.npoints = 0;
-        cache.npaths = 0;
+        cache.points.clearRetainingCapacity();
+        cache.paths.clearRetainingCapacity();
     }
 
     fn allocTempVerts(cache: *PathCache, nverts: u32) ?[]Vertex {
-        if (nverts > cache.cverts) {
+        if (nverts > cache.verts.items.len) {
             const cverts = (nverts + 0xff) & 0xffffff00; // Round up to prevent allocations when things change just slightly.
-            const verts = cache.allocator.realloc(cache.verts, cverts) catch return null;
-            cache.verts = verts;
-            cache.cverts = cverts;
+            cache.verts.ensureTotalCapacity(cverts) catch return null;
+            cache.verts.items.len = nverts;
         }
 
-        return cache.verts;
+        return cache.verts.items;
     }
 
     fn lastPath(cache: *PathCache) ?*Path {
-        if (cache.npaths > 0)
-            return &cache.paths[cache.npaths - 1];
+        if (cache.paths.items.len > 0)
+            return &cache.paths.items[cache.paths.items.len - 1];
         return null;
     }
 
     fn addPath(cache: *PathCache) void {
-        if (cache.npaths + 1 > cache.cpaths) {
-            const cpaths = cache.npaths + 1 + cache.cpaths / 2;
-            const paths = cache.allocator.realloc(cache.paths, cpaths) catch return;
-            cache.paths = paths;
-            cache.cpaths = cpaths;
-        }
-        var path = &cache.paths[cache.npaths];
+        const path = cache.paths.addOne() catch return;
         path.* = std.mem.zeroes(Path);
-        path.first = cache.npoints;
+        path.first = @truncate(u32, cache.points.items.len);
         path.winding = .ccw;
-
-        cache.npaths += 1;
     }
 
     fn lastPoint(cache: *PathCache) ?*Point {
-        if (cache.npoints > 0)
-            return &cache.points[cache.npoints - 1];
+        if (cache.points.items.len > 0)
+            return &cache.points.items[cache.points.items.len - 1];
         return null;
     }
 
     fn addPoint(cache: *PathCache, x: f32, y: f32, flags: PointFlag, dist_tol: f32) void {
         const path = cache.lastPath() orelse return;
 
-        if (path.count > 0 and cache.npoints > 0) {
-            const pt = cache.lastPoint().?;
-            if (ptEquals(pt.x, pt.y, x, y, dist_tol)) {
-                pt.flags |= @enumToInt(flags);
-                return;
+        if (path.count > 0) {
+            if (cache.lastPoint()) |pt| {
+                if (ptEquals(pt.x, pt.y, x, y, dist_tol)) {
+                    pt.flags |= @enumToInt(flags);
+                    return;
+                }
             }
         }
 
-        if (cache.npoints + 1 > cache.cpoints) {
-            const cpoints = cache.npoints + 1 + cache.cpoints / 2;
-            const points = cache.allocator.realloc(cache.points, cpoints) catch return;
-            cache.points = points;
-            cache.cpoints = cpoints;
-        }
-
-        const pt = &cache.points[cache.npoints];
+        const pt = cache.points.addOne() catch return;
         pt.* = std.mem.zeroes(Point);
         pt.x = x;
         pt.y = y;
         pt.flags = @enumToInt(flags);
 
-        cache.npoints += 1;
         path.count += 1;
     }
 
