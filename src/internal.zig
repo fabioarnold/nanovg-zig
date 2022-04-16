@@ -366,7 +366,7 @@ pub const Context = struct {
         ctx.commands.appendSliceAssumeCapacity(vals);
     }
 
-    fn tesselateBezier(ctx: *Context, x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32, level: u8, cornerType: PointFlag) void {
+    fn tesselateBezier(ctx: *Context, x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32, level: u8, cornerType: PointFlags) void {
         if (level > 10) return;
 
         const x12 = (x1 + x2) * 0.5;
@@ -394,7 +394,7 @@ pub const Context = struct {
         const x1234 = (x123 + x234) * 0.5;
         const y1234 = (y123 + y234) * 0.5;
 
-        ctx.tesselateBezier(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, .none);
+        ctx.tesselateBezier(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1, .{});
         ctx.tesselateBezier(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, cornerType);
     }
 
@@ -411,12 +411,12 @@ pub const Context = struct {
                 .move_to => {
                     cache.addPath();
                     const p = ctx.commands.items[i + 1 ..];
-                    cache.addPoint(p[0], p[1], .corner, ctx.dist_tol);
+                    cache.addPoint(p[0], p[1], .{.corner = true}, ctx.dist_tol);
                     i += 3;
                 },
                 .line_to => {
                     const p = ctx.commands.items[i + 1 ..];
-                    cache.addPoint(p[0], p[1], .corner, ctx.dist_tol);
+                    cache.addPoint(p[0], p[1], .{.corner = true}, ctx.dist_tol);
                     i += 3;
                 },
                 .bezier_to => {
@@ -424,7 +424,7 @@ pub const Context = struct {
                         const cp1 = ctx.commands.items[i + 1 ..];
                         const cp2 = ctx.commands.items[i + 3 ..];
                         const p = ctx.commands.items[i + 5 ..];
-                        ctx.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, .corner);
+                        ctx.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, .{.corner = true});
                     }
                     i += 7;
                 },
@@ -514,27 +514,27 @@ pub const Context = struct {
                 }
 
                 // Clear flags, but keep the corner.
-                p1.flags = if ((p1.flags & @enumToInt(PointFlag.corner)) != 0) @enumToInt(PointFlag.corner) else 0;
+                p1.flags = if (p1.flags.corner) .{.corner = true} else .{};
 
                 // Keep track of left turns.
                 if (cross(p0.dx, p0.dy, p1.dx, p1.dy) > 0.0) {
                     nleft += 1;
-                    p1.flags |= @enumToInt(PointFlag.left);
+                    p1.flags.left = true;
                 }
 
                 // Calculate if we should use bevel or miter for inner join.
                 const limit = std.math.max(1.01, std.math.min(p0.len, p1.len) * iw);
                 if ((dmr2 * limit * limit) < 1.0)
-                    p1.flags |= @enumToInt(PointFlag.innerbevel);
+                    p1.flags.innerbevel = true;
 
                 // Check to see if the corner needs to be beveled.
-                if ((p1.flags & @enumToInt(PointFlag.corner)) != 0) {
+                if (p1.flags.corner) {
                     if ((dmr2 * miter_limit * miter_limit) < 1.0 or line_join == .bevel or line_join == .round) {
-                        p1.flags |= @enumToInt(PointFlag.bevel);
+                        p1.flags.bevel = true;
                     }
                 }
 
-                if ((p1.flags & (@enumToInt(PointFlag.bevel) | @enumToInt(PointFlag.innerbevel))) != 0)
+                if (p1.flags.bevel or p1.flags.innerbevel)
                     path.nbevel += 1;
             }
 
@@ -575,12 +575,12 @@ pub const Context = struct {
                 var p0 = &pts[pts.len - 1];
                 for (pts) |*p1| {
                     defer p0 = p1;
-                    if ((p1.flags & @enumToInt(PointFlag.bevel)) != 0) {
+                    if (p1.flags.bevel) {
                         const dlx0 = p0.dy;
                         const dly0 = -p0.dx;
                         const dlx1 = p1.dy;
                         const dly1 = -p1.dx;
-                        if ((p1.flags & @enumToInt(PointFlag.left)) != 0) {
+                        if (p1.flags.left) {
                             const lx = p1.x + p1.dmx * woff;
                             const ly = p1.y + p1.dmy * woff;
                             dst[dst_i].set(lx, ly, 0.5, 1);
@@ -631,7 +631,7 @@ pub const Context = struct {
                 var p0 = &pts[pts.len - 1];
                 for (pts) |*p1| {
                     defer p0 = p1;
-                    if ((p1.flags & (@enumToInt(PointFlag.bevel) | @enumToInt(PointFlag.innerbevel))) != 0) {
+                    if (p1.flags.bevel or p1.flags.innerbevel) {
                         dst_i += bevelJoin(dst[dst_i..], p0.*, p1.*, lw, rw, lu, ru, ctx.fringe_width);
                     } else {
                         dst[dst_i].set(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
@@ -742,7 +742,7 @@ pub const Context = struct {
             var j: u32 = s;
             while (j < e) : (j += 1) {
                 p1 = &pts[j];
-                if ((p1.flags & (@enumToInt(PointFlag.bevel) | @enumToInt(PointFlag.innerbevel))) != 0) {
+                if (p1.flags.bevel or p1.flags.innerbevel) {
                     if (line_join == .round) {
                         dst_i += roundJoin(dst[dst_i..], p0.*, p1.*, w, w, @"u0", @"u1", ncap, aa);
                     } else {
@@ -1826,12 +1826,11 @@ const Command = enum(i32) {
     }
 };
 
-const PointFlag = enum(u8) {
-    none = 0x0,
-    corner = 0x01,
-    left = 0x02,
-    bevel = 0x04,
-    innerbevel = 0x08,
+const PointFlags = struct {
+    corner: bool = false,
+    left: bool = false,
+    bevel: bool = false,
+    innerbevel: bool = false,
 };
 
 pub const TextureType = enum(u8) {
@@ -1921,7 +1920,7 @@ const Point = struct {
     len: f32,
     dmx: f32,
     dmy: f32,
-    flags: u8,
+    flags: PointFlags,
 };
 
 const PathCache = struct {
@@ -1980,13 +1979,16 @@ const PathCache = struct {
         return null;
     }
 
-    fn addPoint(cache: *PathCache, x: f32, y: f32, flags: PointFlag, dist_tol: f32) void {
+    fn addPoint(cache: *PathCache, x: f32, y: f32, flags: PointFlags, dist_tol: f32) void {
         const path = cache.lastPath() orelse return;
 
         if (path.count > 0) {
             if (cache.lastPoint()) |pt| {
                 if (ptEquals(pt.x, pt.y, x, y, dist_tol)) {
-                    pt.flags |= @enumToInt(flags);
+                    if (flags.corner) pt.flags.corner = true;
+                    if (flags.left) pt.flags.left = true;
+                    if (flags.bevel) pt.flags.bevel = true;
+                    if (flags.innerbevel) pt.flags.innerbevel = true;
                     return;
                 }
             }
@@ -1996,7 +1998,7 @@ const PathCache = struct {
         pt.* = std.mem.zeroes(Point);
         pt.x = x;
         pt.y = y;
-        pt.flags = @enumToInt(flags);
+        pt.flags = flags;
 
         path.count += 1;
     }
@@ -2127,12 +2129,12 @@ fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
     _ = fringe;
     var dst_i: u32 = 0;
 
-    if ((p1.flags & @enumToInt(PointFlag.left)) != 0) {
+    if (p1.flags.left) {
         var lx0: f32 = undefined;
         var ly0: f32 = undefined;
         var lx1: f32 = undefined;
         var ly1: f32 = undefined;
-        chooseBevel((p1.flags & @enumToInt(PointFlag.innerbevel)) != 0, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+        chooseBevel(p1.flags.innerbevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
         var a0 = std.math.atan2(f32, -dly0, -dlx0);
         var a1 = std.math.atan2(f32, -dly1, -dlx1);
         if (a1 > a0) a1 -= std.math.pi * 2.0;
@@ -2165,7 +2167,7 @@ fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
         var ry0: f32 = undefined;
         var rx1: f32 = undefined;
         var ry1: f32 = undefined;
-        chooseBevel((p1.flags & @enumToInt(PointFlag.innerbevel)) != 0, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+        chooseBevel(p1.flags.innerbevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
         var a0 = std.math.atan2(f32, dly0, dlx0);
         var a1 = std.math.atan2(f32, dly1, dlx1);
         if (a1 < a0) a1 += std.math.pi * 2.0;
@@ -2214,15 +2216,15 @@ fn bevelJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
     _ = fringe;
     var dst_i: u32 = 0;
 
-    if ((p1.flags & @enumToInt(PointFlag.left)) != 0) {
-        chooseBevel((p1.flags & @enumToInt(PointFlag.innerbevel)) != 0, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
+    if (p1.flags.left) {
+        chooseBevel(p1.flags.innerbevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
         dst[dst_i].set(lx0, ly0, lu, 1);
         dst_i += 1;
         dst[dst_i].set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
         dst_i += 1;
 
-        if ((p1.flags & @enumToInt(PointFlag.bevel)) != 0) {
+        if (p1.flags.bevel) {
             dst[dst_i].set(lx0, ly0, lu, 1);
             dst_i += 1;
             dst[dst_i].set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
@@ -2257,14 +2259,14 @@ fn bevelJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
         dst[dst_i].set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
         dst_i += 1;
     } else {
-        chooseBevel((p1.flags & @enumToInt(PointFlag.innerbevel)) != 0, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
+        chooseBevel(p1.flags.innerbevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
         dst[dst_i].set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
         dst_i += 1;
         dst[dst_i].set(rx0, ry0, ru, 1);
         dst_i += 1;
 
-        if ((p1.flags & @enumToInt(PointFlag.bevel)) != 0) {
+        if (p1.flags.bevel) {
             dst[dst_i].set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
             dst_i += 1;
             dst[dst_i].set(rx0, ry0, ru, 1);
