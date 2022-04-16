@@ -600,7 +600,6 @@ pub const Context = struct {
             }
 
             path.fill = dst.items;
-            path.nfill = @intCast(u32, dst.items.len);
             verts = verts[dst.items.len..verts.len];
 
             // Calculate fringe
@@ -636,11 +635,9 @@ pub const Context = struct {
                 dst.addOneAssumeCapacity().set(verts[1].x, verts[1].y, ru, 1);
 
                 path.stroke = dst.items;
-                path.nstroke = @intCast(u32, dst.items.len);
                 verts = verts[dst.items.len..verts.len];
             } else {
                 path.stroke = &.{};
-                path.nstroke = 0;
             }
         }
 
@@ -690,7 +687,6 @@ pub const Context = struct {
             const pts = cache.points.items[path.first..][0..path.count];
 
             path.fill = &.{};
-            path.nfill = 0;
 
             // Calculate fringe or stroke
             const loop = path.closed;
@@ -754,7 +750,6 @@ pub const Context = struct {
             }
 
             path.stroke = dst.items;
-            path.nstroke = @intCast(u32, dst.items.len);
             verts = verts[dst.items.len..verts.len];
         }
 
@@ -1172,9 +1167,8 @@ pub const Context = struct {
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
-            // console.log("{} path nfill={}, nstroke={}", .{i, path.nfill, path.nstroke});
-            if (path.nfill >= 2) ctx.fill_tri_count += path.nfill - 2;
-            if (path.nstroke >= 2) ctx.fill_tri_count += path.nstroke - 2;
+            if (path.fill.len >= 2) ctx.fill_tri_count += @intCast(u32, path.fill.len - 2);
+            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(u32, path.stroke.len - 2);
             ctx.draw_call_count += 2;
         }
     }
@@ -1210,7 +1204,7 @@ pub const Context = struct {
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
-            if (path.nstroke >= 2) ctx.fill_tri_count += path.nstroke - 2;
+            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(u32, path.stroke.len - 2);
             ctx.draw_call_count += 2;
         }
     }
@@ -1841,9 +1835,7 @@ pub const Path = struct {
     closed: bool,
     nbevel: u32,
     fill: []Vertex,
-    nfill: u32,
     stroke: []Vertex,
-    nstroke: u32,
     winding: nvg.Winding,
     convex: bool,
 };

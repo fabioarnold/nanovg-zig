@@ -403,11 +403,11 @@ const Path = struct {
     stroke_count: u32,
 };
 
-fn maxVertCount(paths: []const internal.Path) u32 {
-    var count: u32 = 0;
+fn maxVertCount(paths: []const internal.Path) usize {
+    var count: usize = 0;
     for (paths) |path| {
-        count += path.nfill;
-        count += path.nstroke;
+        count += path.fill.len;
+        count += path.stroke.len;
     }
     return count;
 }
@@ -740,15 +740,15 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
     for (paths) |path| {
         const copy = ctx.paths.addOneAssumeCapacity();
         copy.* = std.mem.zeroes(Path);
-        if (path.nfill > 0) {
+        if (path.fill.len > 0) {
             copy.fill_offset = @intCast(u32, ctx.verts.items.len);
-            copy.fill_count = @intCast(u32, path.nfill);
-            ctx.verts.appendSliceAssumeCapacity(path.fill[0..path.nfill]);
+            copy.fill_count = @intCast(u32, path.fill.len);
+            ctx.verts.appendSliceAssumeCapacity(path.fill);
         }
-        if (path.nstroke > 0) {
+        if (path.stroke.len > 0) {
             copy.stroke_offset = @intCast(u32, ctx.verts.items.len);
-            copy.stroke_count = @intCast(u32, path.nstroke);
-            ctx.verts.appendSliceAssumeCapacity(path.stroke[0..path.nstroke]);
+            copy.stroke_count = @intCast(u32, path.stroke.len);
+            ctx.verts.appendSliceAssumeCapacity(path.stroke);
         }
     }
 
@@ -799,10 +799,10 @@ fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Co
     for (paths) |path| {
         const copy = ctx.paths.addOneAssumeCapacity();
         copy.* = std.mem.zeroes(Path);
-        if (path.nstroke > 0) {
+        if (path.stroke.len > 0) {
             copy.stroke_offset = @intCast(u32, ctx.verts.items.len);
-            copy.stroke_count = @intCast(u32, path.nstroke);
-            ctx.verts.appendSliceAssumeCapacity(path.stroke[0..path.nstroke]);
+            copy.stroke_count = @intCast(u32, path.stroke.len);
+            ctx.verts.appendSliceAssumeCapacity(path.stroke);
         }
     }
 
