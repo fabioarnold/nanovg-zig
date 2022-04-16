@@ -46,9 +46,9 @@ pub fn main() !void {
     }
     window = c.glfwCreateWindow(@floatToInt(i32, scale * 1000), @floatToInt(i32, scale * 600), "NanoVG", null, null);
     if (window == null) {
-        c.glfwTerminate();
         return error.GLFWInitFailed;
     }
+    defer c.glfwDestroyWindow(window);
 
     _ = c.glfwSetKeyCallback(window, keyCallback);
 

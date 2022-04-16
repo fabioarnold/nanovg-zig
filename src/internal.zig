@@ -19,11 +19,8 @@ const Font = nvg.Font;
 const NVG_INIT_FONTIMAGE_SIZE = 512;
 const NVG_MAX_FONTIMAGE_SIZE = 2048;
 
-const NVG_INIT_POINTS_SIZE = 128;
-const NVG_INIT_PATHS_SIZE = 16;
-const NVG_INIT_VERTS_SIZE = 256;
-
-const NVG_KAPPA90 = 0.5522847493; // Length proportional to radius of a cubic bezier handle for 90deg arcs.
+// Length proportional to radius of a cubic bezier handle for 90deg arcs.
+const kappa90 = 4.0 * (@sqrt(2.0) - 1.0) / 3.0; // 0.5522847493
 
 pub const Context = struct {
     allocator: Allocator,
@@ -50,8 +47,8 @@ pub const Context = struct {
         ctx.* = Context{
             .allocator = allocator,
             .params = params,
-            .commands = ArrayList(f32).init(allocator),
-            .states = ArrayList(State).init(allocator),
+            .commands = try ArrayList(f32).initCapacity(allocator, 256),
+            .states = try ArrayList(State).initCapacity(allocator, 32),
             .cache = try PathCache.init(allocator),
             .tess_tol = undefined,
             .dist_tol = undefined,
@@ -59,9 +56,6 @@ pub const Context = struct {
             .device_px_ratio = undefined,
         };
         errdefer ctx.deinit();
-
-        try ctx.states.ensureTotalCapacity(32);
-        try ctx.commands.ensureTotalCapacity(256);
 
         ctx.save();
         ctx.reset();
@@ -161,33 +155,27 @@ pub const Context = struct {
     }
 
     pub fn shapeAntiAlias(ctx: *Context, enabled: bool) void {
-        const state = ctx.getState();
-        state.shape_antialias = enabled;
+        ctx.getState().shape_antialias = enabled;
     }
 
     pub fn strokeWidth(ctx: *Context, width: f32) void {
-        const state = ctx.getState();
-        state.stroke_width = width;
+        ctx.getState().stroke_width = width;
     }
 
     pub fn miterLimit(ctx: *Context, limit: f32) void {
-        const state = ctx.getState();
-        state.miter_limit = limit;
+        ctx.getState().miter_limit = limit;
     }
 
     pub fn lineCap(ctx: *Context, cap: nvg.LineCap) void {
-        const state = ctx.getState();
-        state.line_cap = cap;
+        ctx.getState().line_cap = cap;
     }
 
     pub fn lineJoin(ctx: *Context, join: nvg.LineJoin) void {
-        const state = ctx.getState();
-        state.line_join = join;
+        ctx.getState().line_join = join;
     }
 
     pub fn globalAlpha(ctx: *Context, alpha: f32) void {
-        const state = ctx.getState();
-        state.alpha = alpha;
+        ctx.getState().alpha = alpha;
     }
 
     pub fn transform(ctx: *Context, a: f32, b: f32, _c: f32, d: f32, e: f32, f: f32) void {
@@ -461,12 +449,10 @@ pub const Context = struct {
             var pts = cache.points.items[path.first..][0..path.count];
 
             // If the first and last points are the same, remove the last, mark as closed path.
-            var p0 = &pts[path.count - 1];
-            var p1 = &pts[0];
-            if (ptEquals(p0.x, p0.y, p1.x, p1.y, ctx.dist_tol)) {
+            var p0 = &pts[pts.len - 1];
+            if (ptEquals(p0.x, p0.y, pts[0].x, pts[0].y, ctx.dist_tol)) {
                 path.count -= 1;
                 pts.len -= 1;
-                p0 = &pts[path.count - 1];
                 path.closed = true;
             }
 
@@ -479,9 +465,9 @@ pub const Context = struct {
                     polyReverse(pts);
             }
 
-            i = 0;
-            while (i < path.count) : (i += 1) {
-                p1 = &pts[i];
+            p0 = &pts[pts.len - 1];
+            for (pts) |*p1| {
+                defer p0 = p1;
                 // Calculate segment direction and length
                 p0.dx = p1.x - p0.x;
                 p0.dy = p1.y - p0.y;
@@ -491,8 +477,6 @@ pub const Context = struct {
                 cache.bounds[1] = std.math.min(cache.bounds[1], p0.y);
                 cache.bounds[2] = std.math.max(cache.bounds[2], p0.x);
                 cache.bounds[3] = std.math.max(cache.bounds[3], p0.y);
-                // Advance
-                p0 = p1;
             }
         }
     }
@@ -504,16 +488,13 @@ pub const Context = struct {
 
         // Calculate which joins needs extra vertices to append, and gather vertex count.
         for (cache.paths.items) |*path| {
-            const pts = cache.points.items[path.first..];
-            var p0 = &pts[path.count - 1];
-            var p1 = &pts[0];
+            const pts = cache.points.items[path.first..][0..path.count];
             var nleft: u32 = 0;
-
             path.nbevel = 0;
 
-            var j: u32 = 0;
-            while (j < path.count) : (j += 1) {
-                p1 = &pts[j];
+            var p0 = &pts[pts.len - 1];
+            for (pts) |*p1| {
+                defer p0 = p1;
 
                 const dlx0 = p0.dy;
                 const dly0 = -p0.dx;
@@ -555,8 +536,6 @@ pub const Context = struct {
 
                 if ((p1.flags & (@enumToInt(PointFlag.bevel) | @enumToInt(PointFlag.innerbevel))) != 0)
                     path.nbevel += 1;
-
-                p0 = p1;
             }
 
             path.convex = (nleft == path.count);
@@ -593,11 +572,9 @@ pub const Context = struct {
 
             if (fringe) {
                 // Looping
-                var p0 = &pts[path.count - 1];
-                var p1 = &pts[0];
-                var j: u32 = 0;
-                while (j < path.count) : (j += 1) {
-                    p1 = &pts[j];
+                var p0 = &pts[pts.len - 1];
+                for (pts) |*p1| {
+                    defer p0 = p1;
                     if ((p1.flags & @enumToInt(PointFlag.bevel)) != 0) {
                         const dlx0 = p0.dy;
                         const dly0 = -p0.dx;
@@ -622,12 +599,10 @@ pub const Context = struct {
                         dst[dst_i].set(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5, 1);
                         dst_i += 1;
                     }
-                    p0 = p1;
                 }
             } else {
-                var j: u32 = 0;
-                while (j < path.count) : (j += 1) {
-                    dst[dst_i].set(pts[j].x, pts[j].y, 0.5, 1);
+                for (pts) |p| {
+                    dst[dst_i].set(p.x, p.y, 0.5, 1);
                     dst_i += 1;
                 }
             }
@@ -653,12 +628,9 @@ pub const Context = struct {
                 }
 
                 // Looping
-                var p0 = &pts[path.count - 1];
-                var p1 = &pts[0];
-
-                var j: u32 = 0;
-                while (j < path.count) : (j += 1) {
-                    p1 = &pts[j];
+                var p0 = &pts[pts.len - 1];
+                for (pts) |*p1| {
+                    defer p0 = p1;
                     if ((p1.flags & (@enumToInt(PointFlag.bevel) | @enumToInt(PointFlag.innerbevel))) != 0) {
                         dst_i += bevelJoin(dst[dst_i..], p0.*, p1.*, lw, rw, lu, ru, ctx.fringe_width);
                     } else {
@@ -667,7 +639,6 @@ pub const Context = struct {
                         dst[dst_i].set(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
                         dst_i += 1;
                     }
-                    p0 = p1;
                 }
 
                 // Loop it
@@ -989,13 +960,13 @@ pub const Context = struct {
             ctx.appendCommands(&.{
                 Command.move_to.toValue(), x, y + ryTL,
                 Command.line_to.toValue(), x, y + h - ryBL,
-                Command.bezier_to.toValue(), x, y + h - ryBL*(1 - NVG_KAPPA90), x + rxBL*(1 - NVG_KAPPA90), y + h, x + rxBL, y + h,
+                Command.bezier_to.toValue(), x, y + h - ryBL*(1 - kappa90), x + rxBL*(1 - kappa90), y + h, x + rxBL, y + h,
                 Command.line_to.toValue(), x + w - rxBR, y + h,
-                Command.bezier_to.toValue(), x + w - rxBR*(1 - NVG_KAPPA90), y + h, x + w, y + h - ryBR*(1 - NVG_KAPPA90), x + w, y + h - ryBR,
+                Command.bezier_to.toValue(), x + w - rxBR*(1 - kappa90), y + h, x + w, y + h - ryBR*(1 - kappa90), x + w, y + h - ryBR,
                 Command.line_to.toValue(), x + w, y + ryTR,
-                Command.bezier_to.toValue(), x + w, y + ryTR*(1 - NVG_KAPPA90), x + w - rxTR*(1 - NVG_KAPPA90), y, x + w - rxTR, y,
+                Command.bezier_to.toValue(), x + w, y + ryTR*(1 - kappa90), x + w - rxTR*(1 - kappa90), y, x + w - rxTR, y,
                 Command.line_to.toValue(), x + rxTL, y,
-                Command.bezier_to.toValue(), x + rxTL*(1 - NVG_KAPPA90), y, x, y + ryTL*(1 - NVG_KAPPA90), x, y + ryTL,
+                Command.bezier_to.toValue(), x + rxTL*(1 - kappa90), y, x, y + ryTL*(1 - kappa90), x, y + ryTL,
                 Command.close.toValue(),
             });
             // zig fmt: on
@@ -1006,10 +977,10 @@ pub const Context = struct {
         // zig fmt: off
         ctx.appendCommands(&.{
             Command.move_to.toValue(), cx-rx, cy,
-            Command.bezier_to.toValue(), cx-rx, cy+ry*NVG_KAPPA90, cx-rx*NVG_KAPPA90, cy+ry, cx, cy+ry,
-            Command.bezier_to.toValue(), cx+rx*NVG_KAPPA90, cy+ry, cx+rx, cy+ry*NVG_KAPPA90, cx+rx, cy,
-            Command.bezier_to.toValue(), cx+rx, cy-ry*NVG_KAPPA90, cx+rx*NVG_KAPPA90, cy-ry, cx, cy-ry,
-            Command.bezier_to.toValue(), cx-rx*NVG_KAPPA90, cy-ry, cx-rx, cy-ry*NVG_KAPPA90, cx-rx, cy,
+            Command.bezier_to.toValue(), cx-rx, cy+ry*kappa90, cx-rx*kappa90, cy+ry, cx, cy+ry,
+            Command.bezier_to.toValue(), cx+rx*kappa90, cy+ry, cx+rx, cy+ry*kappa90, cx+rx, cy,
+            Command.bezier_to.toValue(), cx+rx, cy-ry*kappa90, cx+rx*kappa90, cy-ry, cx, cy-ry,
+            Command.bezier_to.toValue(), cx-rx*kappa90, cy-ry, cx-rx, cy-ry*kappa90, cx-rx, cy,
             Command.close.toValue(),
         });
         // zig fmt: on
@@ -1963,9 +1934,9 @@ const PathCache = struct {
     fn init(allocator: Allocator) !PathCache {
         return PathCache{
             .allocator = allocator,
-            .points = try ArrayList(Point).initCapacity(allocator, NVG_INIT_POINTS_SIZE),
-            .paths = try ArrayList(Path).initCapacity(allocator, NVG_INIT_PATHS_SIZE),
-            .verts = try ArrayList(Vertex).initCapacity(allocator, NVG_INIT_VERTS_SIZE),
+            .points = try ArrayList(Point).initCapacity(allocator, 128),
+            .paths = try ArrayList(Path).initCapacity(allocator, 16),
+            .verts = try ArrayList(Vertex).initCapacity(allocator, 256),
         };
     }
 
