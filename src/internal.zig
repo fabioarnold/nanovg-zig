@@ -411,12 +411,12 @@ pub const Context = struct {
                 .move_to => {
                     cache.addPath();
                     const p = ctx.commands.items[i + 1 ..];
-                    cache.addPoint(p[0], p[1], .{.corner = true}, ctx.dist_tol);
+                    cache.addPoint(p[0], p[1], .{ .corner = true }, ctx.dist_tol);
                     i += 3;
                 },
                 .line_to => {
                     const p = ctx.commands.items[i + 1 ..];
-                    cache.addPoint(p[0], p[1], .{.corner = true}, ctx.dist_tol);
+                    cache.addPoint(p[0], p[1], .{ .corner = true }, ctx.dist_tol);
                     i += 3;
                 },
                 .bezier_to => {
@@ -424,7 +424,7 @@ pub const Context = struct {
                         const cp1 = ctx.commands.items[i + 1 ..];
                         const cp2 = ctx.commands.items[i + 3 ..];
                         const p = ctx.commands.items[i + 5 ..];
-                        ctx.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, .{.corner = true});
+                        ctx.tesselateBezier(last.x, last.y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0, .{ .corner = true });
                     }
                     i += 7;
                 },
@@ -506,15 +506,13 @@ pub const Context = struct {
                 const dmr2 = p1.dmx * p1.dmx + p1.dmy * p1.dmy;
                 if (dmr2 > 0.000001) {
                     var s = 1.0 / dmr2;
-                    if (s > 600) {
-                        s = 600;
-                    }
+                    if (s > 600) s = 600;
                     p1.dmx *= s;
                     p1.dmy *= s;
                 }
 
                 // Clear flags, but keep the corner.
-                p1.flags = if (p1.flags.corner) .{.corner = true} else .{};
+                p1.flags = .{ .corner = p1.flags.corner };
 
                 // Keep track of left turns.
                 if (cross(p0.dx, p0.dy, p1.dx, p1.dy) > 0.0) {
@@ -566,9 +564,8 @@ pub const Context = struct {
 
             // Calculate shape vertices.
             const woff = 0.5 * aa;
-            var dst = verts;
-            var dst_i: u32 = 0;
-            path.fill = dst;
+            var dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
+            dst.clearRetainingCapacity();
 
             if (fringe) {
                 // Looping
@@ -583,32 +580,28 @@ pub const Context = struct {
                         if (p1.flags.left) {
                             const lx = p1.x + p1.dmx * woff;
                             const ly = p1.y + p1.dmy * woff;
-                            dst[dst_i].set(lx, ly, 0.5, 1);
-                            dst_i += 1;
+                            dst.addOneAssumeCapacity().set(lx, ly, 0.5, 1);
                         } else {
                             const lx0 = p1.x + dlx0 * woff;
                             const ly0 = p1.y + dly0 * woff;
                             const lx1 = p1.x + dlx1 * woff;
                             const ly1 = p1.y + dly1 * woff;
-                            dst[dst_i].set(lx0, ly0, 0.5, 1);
-                            dst_i += 1;
-                            dst[dst_i].set(lx1, ly1, 0.5, 1);
-                            dst_i += 1;
+                            dst.addOneAssumeCapacity().set(lx0, ly0, 0.5, 1);
+                            dst.addOneAssumeCapacity().set(lx1, ly1, 0.5, 1);
                         }
                     } else {
-                        dst[dst_i].set(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5, 1);
-                        dst_i += 1;
+                        dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5, 1);
                     }
                 }
             } else {
                 for (pts) |p| {
-                    dst[dst_i].set(p.x, p.y, 0.5, 1);
-                    dst_i += 1;
+                    dst.addOneAssumeCapacity().set(p.x, p.y, 0.5, 1);
                 }
             }
 
-            path.nfill = dst_i;
-            verts = dst[dst_i..verts.len];
+            path.fill = dst.items;
+            path.nfill = @intCast(u32, dst.items.len);
+            verts = verts[dst.items.len..verts.len];
 
             // Calculate fringe
             if (fringe) {
@@ -616,9 +609,8 @@ pub const Context = struct {
                 var rw = w - woff;
                 var lu: f32 = 0;
                 var ru: f32 = 1;
-                dst = verts;
-                dst_i = 0;
-                path.stroke = dst;
+                dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
+                dst.clearRetainingCapacity();
 
                 // Create only half a fringe for convex shapes so that
                 // the shape can be rendered without stenciling.
@@ -632,23 +624,20 @@ pub const Context = struct {
                 for (pts) |*p1| {
                     defer p0 = p1;
                     if (p1.flags.bevel or p1.flags.innerbevel) {
-                        dst_i += bevelJoin(dst[dst_i..], p0.*, p1.*, lw, rw, lu, ru, ctx.fringe_width);
+                        bevelJoin(&dst, p0.*, p1.*, lw, rw, lu, ru, ctx.fringe_width);
                     } else {
-                        dst[dst_i].set(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
-                        dst_i += 1;
-                        dst[dst_i].set(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
-                        dst_i += 1;
+                        dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
+                        dst.addOneAssumeCapacity().set(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
                     }
                 }
 
                 // Loop it
-                dst[dst_i].set(verts[0].x, verts[0].y, lu, 1);
-                dst_i += 1;
-                dst[dst_i].set(verts[1].x, verts[1].y, ru, 1);
-                dst_i += 1;
+                dst.addOneAssumeCapacity().set(verts[0].x, verts[0].y, lu, 1);
+                dst.addOneAssumeCapacity().set(verts[1].x, verts[1].y, ru, 1);
 
-                path.nstroke = dst_i;
-                verts = dst[dst_i..verts.len];
+                path.stroke = dst.items;
+                path.nstroke = @intCast(u32, dst.items.len);
+                verts = verts[dst.items.len..verts.len];
             } else {
                 path.stroke = &.{};
                 path.nstroke = 0;
@@ -705,64 +694,51 @@ pub const Context = struct {
 
             // Calculate fringe or stroke
             const loop = path.closed;
-            var dst = verts;
-            var dst_i: u32 = 0;
-            path.stroke = dst;
+            var dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
+            dst.clearRetainingCapacity();
 
+            // Looping
             var p0 = &pts[path.count - 1];
             var p1 = &pts[0];
             var s: u32 = 0;
             var e = path.count;
-            if (loop) {
-                // Looping
-                p0 = &pts[path.count - 1];
-                p1 = &pts[0];
-                s = 0;
-                e = path.count;
-            } else {
-                // Add cap
+            if (!loop) {
                 p0 = &pts[0];
                 p1 = &pts[1];
                 s = 1;
                 e = path.count - 1;
-            }
 
-            if (!loop) {
                 // Add cap
                 var dx = p1.x - p0.x;
                 var dy = p1.y - p0.y;
                 _ = normalize(&dx, &dy);
-                dst_i += switch (line_cap) {
-                    .butt => buttCapStart(dst[dst_i..], p0.*, dx, dy, w, -aa * 0.5, aa, @"u0", @"u1"),
-                    .square => buttCapStart(dst[dst_i..], p0.*, dx, dy, w, w - aa, aa, @"u0", @"u1"),
-                    .round => roundCapStart(dst[dst_i..], p0.*, dx, dy, w, ncap, aa, @"u0", @"u1"),
-                };
+                switch (line_cap) {
+                    .butt => buttCapStart(&dst, p0.*, dx, dy, w, -aa * 0.5, aa, @"u0", @"u1"),
+                    .square => buttCapStart(&dst, p0.*, dx, dy, w, w - aa, aa, @"u0", @"u1"),
+                    .round => roundCapStart(&dst, p0.*, dx, dy, w, ncap, aa, @"u0", @"u1"),
+                }
             }
 
             var j: u32 = s;
             while (j < e) : (j += 1) {
                 p1 = &pts[j];
+                defer p0 = p1;
                 if (p1.flags.bevel or p1.flags.innerbevel) {
                     if (line_join == .round) {
-                        dst_i += roundJoin(dst[dst_i..], p0.*, p1.*, w, w, @"u0", @"u1", ncap, aa);
+                        roundJoin(&dst, p0.*, p1.*, w, w, @"u0", @"u1", ncap, aa);
                     } else {
-                        dst_i += bevelJoin(dst[dst_i..], p0.*, p1.*, w, w, @"u0", @"u1", aa);
+                        bevelJoin(&dst, p0.*, p1.*, w, w, @"u0", @"u1", aa);
                     }
                 } else {
-                    dst[dst_i].set(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), @"u0", 1);
-                    dst_i += 1;
-                    dst[dst_i].set(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), @"u1", 1);
-                    dst_i += 1;
+                    dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), @"u0", 1);
+                    dst.addOneAssumeCapacity().set(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), @"u1", 1);
                 }
-                p0 = p1;
             }
 
             if (loop) {
                 // Loop it
-                dst[dst_i].set(verts[0].x, verts[0].y, @"u0", 1);
-                dst_i += 1;
-                dst[dst_i].set(verts[1].x, verts[1].y, @"u1", 1);
-                dst_i += 1;
+                dst.addOneAssumeCapacity().set(verts[0].x, verts[0].y, @"u0", 1);
+                dst.addOneAssumeCapacity().set(verts[1].x, verts[1].y, @"u1", 1);
             } else {
                 p1 = &pts[j];
                 // Add cap
@@ -770,15 +746,16 @@ pub const Context = struct {
                 var dy = p1.y - p0.y;
                 _ = normalize(&dx, &dy);
 
-                dst_i += switch (line_cap) {
-                    .butt => buttCapEnd(dst[dst_i..], p1.*, dx, dy, w, -aa * 0.5, aa, @"u0", @"u1"),
-                    .square => buttCapEnd(dst[dst_i..], p1.*, dx, dy, w, w - aa, aa, @"u0", @"u1"),
-                    .round => roundCapEnd(dst[dst_i..], p1.*, dx, dy, w, ncap, aa, @"u0", @"u1"),
-                };
+                switch (line_cap) {
+                    .butt => buttCapEnd(&dst, p1.*, dx, dy, w, -aa * 0.5, aa, @"u0", @"u1"),
+                    .square => buttCapEnd(&dst, p1.*, dx, dy, w, w - aa, aa, @"u0", @"u1"),
+                    .round => roundCapEnd(&dst, p1.*, dx, dy, w, ncap, aa, @"u0", @"u1"),
+                }
             }
 
-            path.nstroke = dst_i;
-            verts = dst[dst_i..verts.len];
+            path.stroke = dst.items;
+            path.nstroke = @intCast(u32, dst.items.len);
+            verts = verts[dst.items.len..verts.len];
         }
 
         return 1;
@@ -2121,13 +2098,12 @@ fn chooseBevel(bevel: bool, p0: Point, p1: Point, w: f32, x0: *f32, y0: *f32, x1
     }
 }
 
-fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, ncap: u32, fringe: f32) u32 {
+fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, ncap: u32, fringe: f32) void {
+    _ = fringe;
     const dlx0 = p0.dy;
     const dly0 = -p0.dx;
     const dlx1 = p1.dy;
     const dly1 = -p1.dx;
-    _ = fringe;
-    var dst_i: u32 = 0;
 
     if (p1.flags.left) {
         var lx0: f32 = undefined;
@@ -2139,10 +2115,8 @@ fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
         var a1 = std.math.atan2(f32, -dly1, -dlx1);
         if (a1 > a0) a1 -= std.math.pi * 2.0;
 
-        dst[dst_i].set(lx0, ly0, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(lx0, ly0, lu, 1);
+        dst.addOneAssumeCapacity().set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
         const ncapf = @intToFloat(f32, ncap);
         const n = std.math.clamp(@ceil(((a0 - a1) / std.math.pi) * ncapf), 2, ncapf);
@@ -2152,16 +2126,12 @@ fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
             const a = a0 + u * (a1 - a0);
             const rx = p1.x + @cos(a) * rw;
             const ry = p1.y + @sin(a) * rw;
-            dst[dst_i].set(p1.x, p1.y, 0.5, 1);
-            dst_i += 1;
-            dst[dst_i].set(rx, ry, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
+            dst.addOneAssumeCapacity().set(rx, ry, ru, 1);
         }
 
-        dst[dst_i].set(lx1, ly1, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(lx1, ly1, lu, 1);
+        dst.addOneAssumeCapacity().set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
     } else {
         var rx0: f32 = undefined;
         var ry0: f32 = undefined;
@@ -2172,10 +2142,8 @@ fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
         var a1 = std.math.atan2(f32, dly1, dlx1);
         if (a1 < a0) a1 += std.math.pi * 2.0;
 
-        dst[dst_i].set(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(rx0, ry0, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
+        dst.addOneAssumeCapacity().set(rx0, ry0, ru, 1);
 
         const ncapf = @intToFloat(f32, ncap);
         const n = std.math.clamp(@ceil(((a0 - a1) / std.math.pi) * ncapf), 2, ncapf);
@@ -2185,204 +2153,143 @@ fn roundJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru:
             const a = a0 + u * (a1 - a0);
             const lx = p1.x + @cos(a) * lw;
             const ly = p1.y + @sin(a) * lw;
-            dst[dst_i].set(lx, ly, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x, p1.y, 0.5, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(lx, ly, lu, 1);
+            dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
         }
 
-        dst[dst_i].set(p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(rx1, ry1, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(p1.x + dlx1 * rw, p1.y + dly1 * rw, lu, 1);
+        dst.addOneAssumeCapacity().set(rx1, ry1, ru, 1);
     }
-
-    return dst_i;
 }
 
-fn bevelJoin(dst: []Vertex, p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, fringe: f32) u32 {
-    var rx0: f32 = undefined;
-    var ry0: f32 = undefined;
-    var rx1: f32 = undefined;
-    var ry1: f32 = undefined;
-    var lx0: f32 = undefined;
-    var ly0: f32 = undefined;
-    var lx1: f32 = undefined;
-    var ly1: f32 = undefined;
+fn bevelJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, fringe: f32) void {
+    _ = fringe;
     const dlx0 = p0.dy;
     const dly0 = -p0.dx;
     const dlx1 = p1.dy;
     const dly1 = -p1.dx;
-    _ = fringe;
-    var dst_i: u32 = 0;
 
     if (p1.flags.left) {
+        var lx0: f32 = undefined;
+        var ly0: f32 = undefined;
+        var lx1: f32 = undefined;
+        var ly1: f32 = undefined;
         chooseBevel(p1.flags.innerbevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
 
-        dst[dst_i].set(lx0, ly0, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(lx0, ly0, lu, 1);
+        dst.addOneAssumeCapacity().set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
         if (p1.flags.bevel) {
-            dst[dst_i].set(lx0, ly0, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(lx0, ly0, lu, 1);
+            dst.addOneAssumeCapacity().set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-            dst[dst_i].set(lx1, ly1, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(lx1, ly1, lu, 1);
+            dst.addOneAssumeCapacity().set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
         } else {
-            rx0 = p1.x - p1.dmx * rw;
-            ry0 = p1.y - p1.dmy * rw;
+            const rx0 = p1.x - p1.dmx * rw;
+            const ry0 = p1.y - p1.dmy * rw;
 
-            dst[dst_i].set(p1.x, p1.y, 0.5, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
+            dst.addOneAssumeCapacity().set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-            dst[dst_i].set(rx0, ry0, ru, 1);
-            dst_i += 1;
-            dst[dst_i].set(rx0, ry0, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(rx0, ry0, ru, 1);
+            dst.addOneAssumeCapacity().set(rx0, ry0, ru, 1);
 
-            dst[dst_i].set(p1.x, p1.y, 0.5, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
+            dst.addOneAssumeCapacity().set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
         }
 
-        dst[dst_i].set(lx1, ly1, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(lx1, ly1, lu, 1);
+        dst.addOneAssumeCapacity().set(p1.x - dlx1 * rw, p1.y - dly1 * rw, ru, 1);
     } else {
+        var rx0: f32 = undefined;
+        var ry0: f32 = undefined;
+        var rx1: f32 = undefined;
+        var ry1: f32 = undefined;
         chooseBevel(p1.flags.innerbevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
 
-        dst[dst_i].set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(rx0, ry0, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+        dst.addOneAssumeCapacity().set(rx0, ry0, ru, 1);
 
         if (p1.flags.bevel) {
-            dst[dst_i].set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(rx0, ry0, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+            dst.addOneAssumeCapacity().set(rx0, ry0, ru, 1);
 
-            dst[dst_i].set(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(rx1, ry1, ru, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+            dst.addOneAssumeCapacity().set(rx1, ry1, ru, 1);
         } else {
-            lx0 = p1.x + p1.dmx * lw;
-            ly0 = p1.y + p1.dmy * lw;
+            const lx0 = p1.x + p1.dmx * lw;
+            const ly0 = p1.y + p1.dmy * lw;
 
-            dst[dst_i].set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x, p1.y, 0.5, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x + dlx0 * lw, p1.y + dly0 * lw, lu, 1);
+            dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
 
-            dst[dst_i].set(lx0, ly0, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(lx0, ly0, lu, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(lx0, ly0, lu, 1);
+            dst.addOneAssumeCapacity().set(lx0, ly0, lu, 1);
 
-            dst[dst_i].set(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-            dst_i += 1;
-            dst[dst_i].set(p1.x, p1.y, 0.5, 1);
-            dst_i += 1;
+            dst.addOneAssumeCapacity().set(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+            dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
         }
 
-        dst[dst_i].set(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
-        dst_i += 1;
-        dst[dst_i].set(rx1, ry1, ru, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(p1.x + dlx1 * lw, p1.y + dly1 * lw, lu, 1);
+        dst.addOneAssumeCapacity().set(rx1, ry1, ru, 1);
     }
-
-    return dst_i;
 }
 
-fn buttCapStart(dst: []Vertex, p: Point, dx: f32, dy: f32, w: f32, d: f32, aa: f32, @"u0": f32, @"u1": f32) u32 {
+fn buttCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, d: f32, aa: f32, @"u0": f32, @"u1": f32) void {
     const px = p.x - dx * d;
     const py = p.y - dy * d;
     const dlx = dy;
     const dly = -dx;
-    var dst_i: u32 = 0;
-    dst[dst_i].set(px + dlx * w - dx * aa, py + dly * w - dy * aa, @"u0", 0);
-    dst_i += 1;
-    dst[dst_i].set(px - dlx * w - dx * aa, py - dly * w - dy * aa, @"u1", 0);
-    dst_i += 1;
-    dst[dst_i].set(px + dlx * w, py + dly * w, @"u0", 1);
-    dst_i += 1;
-    dst[dst_i].set(px - dlx * w, py - dly * w, @"u1", 1);
-    dst_i += 1;
-    return dst_i;
+    dst.addOneAssumeCapacity().set(px + dlx * w - dx * aa, py + dly * w - dy * aa, @"u0", 0);
+    dst.addOneAssumeCapacity().set(px - dlx * w - dx * aa, py - dly * w - dy * aa, @"u1", 0);
+    dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 1);
+    dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
 }
 
-fn buttCapEnd(dst: []Vertex, p: Point, dx: f32, dy: f32, w: f32, d: f32, aa: f32, @"u0": f32, @"u1": f32) u32 {
+fn buttCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, d: f32, aa: f32, @"u0": f32, @"u1": f32) void {
     const px = p.x + dx * d;
     const py = p.y + dy * d;
     const dlx = dy;
     const dly = -dx;
-    var dst_i: u32 = 0;
-    dst[dst_i].set(px + dlx * w, py + dly * w, @"u0", 1);
-    dst_i += 1;
-    dst[dst_i].set(px - dlx * w, py - dly * w, @"u1", 1);
-    dst_i += 1;
-    dst[dst_i].set(px + dlx * w + dx * aa, py + dly * w + dy * aa, @"u0", 0);
-    dst_i += 1;
-    dst[dst_i].set(px - dlx * w + dx * aa, py - dly * w + dy * aa, @"u1", 0);
-    dst_i += 1;
-    return dst_i;
+    dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 1);
+    dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
+    dst.addOneAssumeCapacity().set(px + dlx * w + dx * aa, py + dly * w + dy * aa, @"u0", 0);
+    dst.addOneAssumeCapacity().set(px - dlx * w + dx * aa, py - dly * w + dy * aa, @"u1", 0);
 }
 
-fn roundCapStart(dst: []Vertex, p: Point, dx: f32, dy: f32, w: f32, ncap: u32, aa: f32, @"u0": f32, @"u1": f32) u32 {
+fn roundCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap: u32, aa: f32, @"u0": f32, @"u1": f32) void {
+    _ = aa;
     const px = p.x;
     const py = p.y;
     const dlx = dy;
     const dly = -dx;
-    _ = aa;
-    var dst_i: u32 = 0;
     var i: u32 = 0;
     while (i < ncap) : (i += 1) {
         const a = @intToFloat(f32, i) / @intToFloat(f32, ncap - 1) * std.math.pi;
         const ax = @cos(a) * w;
         const ay = @sin(a) * w;
-        dst[dst_i].set(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, @"u0", 1);
-        dst_i += 1;
-        dst[dst_i].set(px, py, 0.5, 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, @"u0", 1);
+        dst.addOneAssumeCapacity().set(px, py, 0.5, 1);
     }
-    dst[dst_i].set(px + dlx * w, py + dly * w, @"u0", 1);
-    dst_i += 1;
-    dst[dst_i].set(px - dlx * w, py - dly * w, @"u1", 1);
-    dst_i += 1;
-    return dst_i;
+    dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 1);
+    dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
 }
 
-fn roundCapEnd(dst: []Vertex, p: Point, dx: f32, dy: f32, w: f32, ncap: u32, aa: f32, @"u0": f32, @"u1": f32) u32 {
+fn roundCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap: u32, aa: f32, @"u0": f32, @"u1": f32) void {
+    _ = aa;
     const px = p.x;
     const py = p.y;
     const dlx = dy;
     const dly = -dx;
-    _ = aa;
-    var dst_i: u32 = 0;
-    dst[dst_i].set(px + dlx * w, py + dly * w, @"u0", 1);
-    dst_i += 1;
-    dst[dst_i].set(px - dlx * w, py - dly * w, @"u1", 1);
-    dst_i += 1;
+    dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 1);
+    dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
     var i: u32 = 0;
     while (i < ncap) : (i += 1) {
         const a = @intToFloat(f32, i) / @intToFloat(f32, ncap - 1) * std.math.pi;
         const ax = @cos(a) * w;
         const ay = @sin(a) * w;
-        dst[dst_i].set(px, py, 0.5, 1);
-        dst_i += 1;
-        dst[dst_i].set(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, @"u0", 1);
-        dst_i += 1;
+        dst.addOneAssumeCapacity().set(px, py, 0.5, 1);
+        dst.addOneAssumeCapacity().set(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, @"u0", 1);
     }
-    return dst_i;
 }
