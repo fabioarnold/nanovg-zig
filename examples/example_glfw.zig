@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const c = @cImport({
     @cInclude("glad/glad.h");
@@ -38,8 +39,12 @@ pub fn main() !void {
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MAJOR, 2);
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 0);
 
-    const scale = 2;
-    window = c.glfwCreateWindow(scale * 1000, scale * 600, "NanoVG", null, null);
+    const monitor = c.glfwGetPrimaryMonitor();
+    var scale: f32 = 1;
+    if (!builtin.target.isDarwin()) {
+        c.glfwGetMonitorContentScale(monitor, &scale, null);
+    }
+    window = c.glfwCreateWindow(@floatToInt(i32, scale * 1000), @floatToInt(i32, scale * 600), "NanoVG", null, null);
     if (window == null) {
         c.glfwTerminate();
         return error.GLFWInitFailed;
@@ -82,8 +87,8 @@ pub fn main() !void {
         var winWidth: i32 = undefined;
         var winHeight: i32 = undefined;
         c.glfwGetWindowSize(window, &winWidth, &winHeight);
-        winWidth = @divTrunc(winWidth, scale);
-        winHeight = @divTrunc(winHeight, scale);
+        winWidth = @floatToInt(i32, @intToFloat(f32, winWidth) / scale);
+        winHeight = @floatToInt(i32,  @intToFloat(f32, winHeight) / scale);
         var fbWidth: i32 = undefined;
         var fbHeight: i32 = undefined;
         c.glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
