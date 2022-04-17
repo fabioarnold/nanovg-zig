@@ -16,8 +16,8 @@ const Image = nvg.Image;
 const ImageFlags = nvg.ImageFlags;
 const Font = nvg.Font;
 
-const NVG_INIT_FONTIMAGE_SIZE = 512;
-const NVG_MAX_FONTIMAGE_SIZE = 2048;
+const init_fontimage_size = 512;
+const max_fontimage_size = 2048;
 
 // Length proportional to radius of a cubic bezier handle for 90deg arcs.
 const kappa90 = 4.0 * (@sqrt(2.0) - 1.0) / 3.0; // 0.5522847493
@@ -65,8 +65,8 @@ pub const Context = struct {
         _ = ctx.params.renderCreate(ctx.params.user_ptr); // TODO: handle error
 
         var font_params = std.mem.zeroes(c.FONSparams);
-        font_params.width = NVG_INIT_FONTIMAGE_SIZE;
-        font_params.height = NVG_INIT_FONTIMAGE_SIZE;
+        font_params.width = init_fontimage_size;
+        font_params.height = init_fontimage_size;
         font_params.flags = c.FONS_ZERO_TOPLEFT;
         font_params.renderCreate = null;
         font_params.renderUpdate = null;
@@ -540,7 +540,7 @@ pub const Context = struct {
         }
     }
 
-    fn expandFill(ctx: *Context, w: f32, line_join: nvg.LineJoin, miter_limit: f32) i32 {
+    fn expandFill(ctx: *Context, w: f32, line_join: nvg.LineJoin, miter_limit: f32) !void {
         const cache = &ctx.cache;
         const aa = ctx.fringe_width;
         const fringe = w > 0.0;
@@ -555,7 +555,7 @@ pub const Context = struct {
                 cverts += (path.count + path.nbevel * 5 + 1) * 2; // plus one for loop
         }
 
-        var verts = cache.allocTempVerts(cverts) orelse return 0;
+        var verts = try cache.allocTempVerts(cverts);
 
         const convex = cache.paths.items.len == 1 and cache.paths.items[0].convex;
 
@@ -640,11 +640,9 @@ pub const Context = struct {
                 path.stroke = &.{};
             }
         }
-
-        return 1;
     }
 
-    pub fn expandStroke(ctx: *Context, width: f32, fringe: f32, line_cap: nvg.LineCap, line_join: nvg.LineJoin, miter_limit: f32) i32 {
+    pub fn expandStroke(ctx: *Context, width: f32, fringe: f32, line_cap: nvg.LineCap, line_join: nvg.LineJoin, miter_limit: f32) !void {
         const cache = &ctx.cache;
         const aa = fringe;
         var @"u0": f32 = 0;
@@ -681,7 +679,7 @@ pub const Context = struct {
             }
         }
 
-        var verts = cache.allocTempVerts(cverts) orelse return 0;
+        var verts = try cache.allocTempVerts(cverts);
 
         for (cache.paths.items) |*path| {
             const pts = cache.points.items[path.first..][0..path.count];
@@ -752,8 +750,6 @@ pub const Context = struct {
             path.stroke = dst.items;
             verts = verts[dst.items.len..verts.len];
         }
-
-        return 1;
     }
 
     pub fn beginPath(ctx: *Context) void {
@@ -1157,11 +1153,8 @@ pub const Context = struct {
 
         ctx.flattenPaths();
 
-        if (ctx.params.edge_antialias and state.shape_antialias) {
-            _ = ctx.expandFill(ctx.fringe_width, .miter, 2.4);
-        } else {
-            _ = ctx.expandFill(0.0, .miter, 2.4);
-        }
+        const fringe = if (ctx.params.edge_antialias and state.shape_antialias) ctx.fringe_width else 0;
+        ctx.expandFill(fringe, .miter, 2.4) catch return;
 
         ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths.items);
 
@@ -1194,11 +1187,8 @@ pub const Context = struct {
 
         ctx.flattenPaths();
 
-        if (ctx.params.edge_antialias and state.shape_antialias) {
-            _ = ctx.expandStroke(stroke_width * 0.5, ctx.fringe_width, state.line_cap, state.line_join, state.miter_limit);
-        } else {
-            _ = ctx.expandStroke(stroke_width * 0.5, 0, state.line_cap, state.line_join, state.miter_limit);
-        }
+        const fringe = if (ctx.params.edge_antialias and state.shape_antialias) ctx.fringe_width else 0;
+        ctx.expandStroke(stroke_width * 0.5, fringe, state.line_cap, state.line_join, state.miter_limit) catch return;
 
         ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringe_width, stroke_width, ctx.cache.paths.items);
 
@@ -1288,9 +1278,9 @@ pub const Context = struct {
             } else {
                 iw *= 2;
             }
-            if (iw > NVG_MAX_FONTIMAGE_SIZE or ih > NVG_MAX_FONTIMAGE_SIZE) {
-                iw = NVG_MAX_FONTIMAGE_SIZE;
-                ih = NVG_MAX_FONTIMAGE_SIZE;
+            if (iw > max_fontimage_size or ih > max_fontimage_size) {
+                iw = max_fontimage_size;
+                ih = max_fontimage_size;
             }
             ctx.font_images[ctx.font_image_idx + 1] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, iw, ih, .{}, null);
         }
@@ -1331,12 +1321,12 @@ pub const Context = struct {
         c.fonsSetFont(ctx.fs, state.font_id);
 
         const cverts = @intCast(u32, std.math.max(2, string.len) * 6); // conservative estimate.
-        var verts = ctx.cache.allocTempVerts(cverts) orelse return x;
+        var verts = ctx.cache.allocTempVerts(cverts) catch return x;
         var nverts: u32 = 0;
 
         var iter: c.FONStextIter = undefined;
         _ = c.fonsTextIterInit(ctx.fs, &iter, x * s, y * s, string.ptr, end, c.FONS_GLYPH_BITMAP_REQUIRED);
-        var prevIter = iter;
+        var prev_iter = iter;
         var q: c.FONSquad = undefined;
         while (c.fonsTextIterNext(ctx.fs, &iter, &q) != 0) {
             var corners: [4 * 2]f32 = undefined;
@@ -1347,12 +1337,12 @@ pub const Context = struct {
                 }
                 if (!ctx.allocTextAtlas())
                     break; // no memory :(
-                iter = prevIter;
+                iter = prev_iter;
                 _ = c.fonsTextIterNext(ctx.fs, &iter, &q); // try again
                 if (iter.prevGlyphIndex == -1) // still can not find glyph?
                     break;
             }
-            prevIter = iter;
+            prev_iter = iter;
             // Transform corners.
             nvg.transformPoint(&corners[0], &corners[1], &state.xform, q.x0 * invs, q.y0 * invs);
             nvg.transformPoint(&corners[2], &corners[3], &state.xform, q.x1 * invs, q.y0 * invs);
@@ -1434,14 +1424,14 @@ pub const Context = struct {
         var npos: usize = 0;
         var iter: c.FONStextIter = undefined;
         _ = c.fonsTextIterInit(ctx.fs, &iter, x * s, y * s, string.ptr, end, c.FONS_GLYPH_BITMAP_OPTIONAL);
-        var prevIter = iter;
+        var prev_iter = iter;
         var q: c.FONSquad = undefined;
         while (c.fonsTextIterNext(ctx.fs, &iter, &q) != 0) {
             if (iter.prevGlyphIndex < 0 and ctx.allocTextAtlas()) { // can not retrieve glyph?
-                iter = prevIter;
+                iter = prev_iter;
                 _ = c.fonsTextIterNext(ctx.fs, &iter, &q); // try again
             }
-            prevIter = iter;
+            prev_iter = iter;
             positions[npos].str = iter.str;
             positions[npos].x = iter.x * invs;
             positions[npos].minx = std.math.min(iter.x, q.x0) * invs;
@@ -1496,14 +1486,14 @@ pub const Context = struct {
         var ptype = CodePointType.space;
         var iter: c.FONStextIter = undefined;
         _ = c.fonsTextIterInit(ctx.fs, &iter, 0, 0, string.ptr, end, c.FONS_GLYPH_BITMAP_OPTIONAL);
-        var prevIter = iter;
+        var prev_iter = iter;
         var q: c.FONSquad = undefined;
         while (c.fonsTextIterNext(ctx.fs, &iter, &q) != 0) {
             if (iter.prevGlyphIndex < 0 and ctx.allocTextAtlas()) { // can not retrieve glyph?
-                iter = prevIter;
+                iter = prev_iter;
                 _ = c.fonsTextIterNext(ctx.fs, &iter, &q); // try again
             }
-            prevIter = iter;
+            prev_iter = iter;
             const ctype = switch (iter.codepoint) {
                 9, 11, 12, 32, 0x00a0 => CodePointType.space,
                 10 => if (pcodepoint == 13) CodePointType.space else CodePointType.newline,
@@ -1919,10 +1909,10 @@ const PathCache = struct {
         cache.paths.clearRetainingCapacity();
     }
 
-    fn allocTempVerts(cache: *PathCache, nverts: u32) ?[]Vertex {
+    fn allocTempVerts(cache: *PathCache, nverts: u32) ![]Vertex {
         if (nverts > cache.verts.items.len) {
             const cverts = (nverts + 0xff) & 0xffffff00; // Round up to prevent allocations when things change just slightly.
-            cache.verts.ensureTotalCapacity(cverts) catch return null;
+            try cache.verts.ensureTotalCapacity(cverts);
             cache.verts.items.len = nverts;
         }
 
