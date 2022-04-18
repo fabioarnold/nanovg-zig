@@ -47,8 +47,8 @@ pub const Context = struct {
         ctx.* = Context{
             .allocator = allocator,
             .params = params,
-            .commands = try ArrayList(f32).initCapacity(allocator, 256),
-            .states = try ArrayList(State).initCapacity(allocator, 32),
+            .commands = ArrayList(f32).init(allocator),
+            .states = ArrayList(State).init(allocator),
             .cache = try PathCache.init(allocator),
             .tess_tol = undefined,
             .dist_tol = undefined,
@@ -57,12 +57,15 @@ pub const Context = struct {
         };
         errdefer ctx.deinit();
 
+        try ctx.commands.ensureTotalCapacity(256);
+        try ctx.states.ensureTotalCapacity(32);
+
         ctx.save();
         ctx.reset();
 
         ctx.setDevicePixelRatio(1);
 
-        _ = ctx.params.renderCreate(ctx.params.user_ptr); // TODO: handle error
+        try ctx.params.renderCreate(ctx.params.user_ptr);
 
         var font_params = std.mem.zeroes(c.FONSparams);
         font_params.width = init_fontimage_size;
@@ -76,8 +79,7 @@ pub const Context = struct {
         ctx.fs = c.fonsCreateInternal(&font_params) orelse return error.CreateFontstashFailed;
 
         // Create font texture
-        ctx.font_images[0] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, font_params.width, font_params.height, .{}, null);
-        if (ctx.font_images[0] == 0) return error.CreateFontTextureFaild;
+        ctx.font_images[0] = try ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, font_params.width, font_params.height, .{}, null);
         ctx.font_image_idx = 0;
 
         return ctx;
@@ -265,11 +267,11 @@ pub const Context = struct {
     }
 
     pub fn createImageRGBA(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) };
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) catch 0 };
     }
 
     pub fn createImageAlpha(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) };
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) catch 0 };
     }
 
     pub fn updateImage(ctx: *Context, image: Image, data: []const u8) void {
@@ -963,7 +965,7 @@ pub const Context = struct {
     }
 
     pub fn deleteImage(ctx: *Context, image: i32) void {
-        _ = ctx.params.renderDeleteTexture(ctx.params.user_ptr, image);
+        ctx.params.renderDeleteTexture(ctx.params.user_ptr, image);
     }
 
     pub fn linearGradient(ctx: *Context, sx: f32, sy: f32, ex: f32, ey: f32, icol: Color, ocol: Color) Paint {
@@ -1282,7 +1284,7 @@ pub const Context = struct {
                 iw = max_fontimage_size;
                 ih = max_fontimage_size;
             }
-            ctx.font_images[ctx.font_image_idx + 1] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, iw, ih, .{}, null);
+            ctx.font_images[ctx.font_image_idx + 1] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, iw, ih, .{}, null) catch return false;
         }
         ctx.font_image_idx += 1;
         _ = c.fonsResetAtlas(ctx.fs, iw, ih);
@@ -1833,9 +1835,9 @@ pub const Path = struct {
 pub const Params = struct {
     user_ptr: *anyopaque,
     edge_antialias: bool,
-    renderCreate: fn (uptr: *anyopaque) i32,
-    renderCreateTexture: fn (uptr: *anyopaque, tex_type: TextureType, w: i32, h: i32, image_flags: ImageFlags, data: ?[*]const u8) i32,
-    renderDeleteTexture: fn (uptr: *anyopaque, image: i32) i32,
+    renderCreate: fn (uptr: *anyopaque) anyerror!void,
+    renderCreateTexture: fn (uptr: *anyopaque, tex_type: TextureType, w: i32, h: i32, image_flags: ImageFlags, data: ?[*]const u8) anyerror!i32,
+    renderDeleteTexture: fn (uptr: *anyopaque, image: i32) void,
     renderUpdateTexture: fn (uptr: *anyopaque, image: i32, x: i32, y: i32, w: i32, h: i32, data: ?[*]const u8) i32,
     renderGetTextureSize: fn (uptr: *anyopaque, image: i32, w: *i32, h: *i32) i32,
     renderViewport: fn (uptr: *anyopaque, width: f32, height: f32, device_pixel_ratio: f32) void,
@@ -1890,12 +1892,17 @@ const PathCache = struct {
     bounds: [4]f32 = [_]f32{0} ** 4,
 
     fn init(allocator: Allocator) !PathCache {
-        return PathCache{
+        var cache = PathCache{
             .allocator = allocator,
             .points = try ArrayList(Point).initCapacity(allocator, 128),
             .paths = try ArrayList(Path).initCapacity(allocator, 16),
             .verts = try ArrayList(Vertex).initCapacity(allocator, 256),
         };
+        errdefer cache.deinit();
+        try cache.points.ensureTotalCapacity(128);
+        try cache.paths.ensureTotalCapacity(16);
+        try cache.verts.ensureTotalCapacity(256);
+        return cache;
     }
 
     fn deinit(cache: *PathCache) void {

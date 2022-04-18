@@ -96,7 +96,7 @@ const GLContext = struct {
         }
     }
 
-    fn allocTexture(ctx: *GLContext) ?*Texture {
+    fn allocTexture(ctx: *GLContext) !*Texture {
         var found_tex: ?*Texture = null;
         for (ctx.textures.items) |*tex| {
             if (tex.id == 0) {
@@ -105,7 +105,7 @@ const GLContext = struct {
             }
         }
         if (found_tex == null) {
-            found_tex = ctx.textures.addOne() catch return null;
+            found_tex = try ctx.textures.addOne();
         }
         const tex = found_tex.?;
         tex.* = std.mem.zeroes(Texture);
@@ -140,7 +140,7 @@ const Shader = struct {
     colormap_loc: gl.GLint,
     frag_loc: gl.GLint,
 
-    fn create(shader: *Shader, header: [:0]const u8, vertsrc: [:0]const u8, fragsrc: [:0]const u8) i32 {
+    fn create(shader: *Shader, header: [:0]const u8, vertsrc: [:0]const u8, fragsrc: [:0]const u8) !void {
         var status: gl.GLint = undefined;
         var str: [2][*]const u8 = undefined;
         var len: [2]gl.GLint = undefined;
@@ -163,14 +163,14 @@ const Shader = struct {
         gl.glGetShaderiv(vert, gl.GL_COMPILE_STATUS, &status);
         if (status != gl.GL_TRUE) {
             printShaderErrorLog(vert, "shader", "vert");
-            return 0;
+            return error.ShaderCompilationFailed;
         }
 
         gl.glCompileShader(frag);
         gl.glGetShaderiv(frag, gl.GL_COMPILE_STATUS, &status);
         if (status != gl.GL_TRUE) {
             printShaderErrorLog(frag, "shader", "frag");
-            return 0;
+            return error.ShaderCompilationFailed;
         }
 
         gl.glAttachShader(prog, vert);
@@ -183,7 +183,7 @@ const Shader = struct {
         gl.glGetProgramiv(prog, gl.GL_LINK_STATUS, &status);
         if (status != gl.GL_TRUE) {
             printProgramErrorLog(prog, "shader");
-            return 0;
+            return error.ProgramLinkingFailed;
         }
 
         shader.prog = prog;
@@ -191,8 +191,6 @@ const Shader = struct {
         shader.frag = frag;
 
         shader.getUniformLocations();
-
-        return 1;
     }
 
     fn delete(shader: Shader) void {
@@ -535,27 +533,24 @@ fn setUniforms(ctx: *GLContext, uniform_offset: u32, image: i32, colormap: i32) 
     ctx.checkError("tex paint tex");
 }
 
-fn renderCreate(uptr: *anyopaque) i32 {
+fn renderCreate(uptr: *anyopaque) !void {
     const ctx = GLContext.castPtr(uptr);
 
     const vertSrc = @embedFile("glsl/fill.vert");
     const fragSrc = @embedFile("glsl/fill.frag");
     const fragHeader = if (ctx.options.antialias) "#define EDGE_AA 1\n" else "";
-    if (ctx.shader.create(fragHeader, vertSrc, fragSrc) == 0)
-        return 0;
+    try ctx.shader.create(fragHeader, vertSrc, fragSrc);
 
     gl.glGenBuffers(1, &ctx.vert_buf);
 
     // Some platforms does not allow to have samples to unset textures.
     // Create empty one which is bound when there's no texture specified.
     // ctx.dummyTex = glnvg__renderCreateTexture(NVG_TEXTURE_ALPHA, 1, 1, 0, NULL);
-
-    return 1;
 }
 
-fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32, h: i32, flags: nvg.ImageFlags, data: ?[*]const u8) i32 {
+fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32, h: i32, flags: nvg.ImageFlags, data: ?[*]const u8) !i32 {
     const ctx = GLContext.castPtr(uptr);
-    var tex: *Texture = ctx.allocTexture() orelse return 0;
+    var tex: *Texture = try ctx.allocTexture();
 
     gl.glGenTextures(1, &tex.tex);
     tex.width = w;
@@ -601,12 +596,11 @@ fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32,
     return tex.id;
 }
 
-fn renderDeleteTexture(uptr: *anyopaque, image: i32) i32 {
+fn renderDeleteTexture(uptr: *anyopaque, image: i32) void {
     const ctx = GLContext.castPtr(uptr);
-    const tex = ctx.findTexture(image) orelse return 0;
+    const tex = ctx.findTexture(image) orelse return;
     if (tex.tex != 0) gl.glDeleteTextures(1, &tex.tex);
     tex.* = std.mem.zeroes(Texture);
-    return 1;
 }
 
 fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: i32, y: i32, w_arg: i32, h: i32, data_arg: ?[*]const u8) i32 {
