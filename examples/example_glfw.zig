@@ -118,9 +118,7 @@ pub fn main() !void {
             screenshot = false;
             const data = try Demo.saveScreenshot(allocator, fbWidth, fbHeight, premult);
             defer allocator.free(data);
-            const file = try std.fs.cwd().createFile("dump.png", .{});
-            defer file.close();
-            try file.writeAll(data);
+            try std.fs.cwd().writeFile("dump.png", data);
         }
 
         c.glfwSwapBuffers(window);
