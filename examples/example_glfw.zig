@@ -11,6 +11,8 @@ const Demo = @import("demo.zig");
 const nvg = @import("nanovg");
 
 var blowup: bool = false;
+var screenshot: bool = false;
+var premult: bool = false;
 
 fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_int, mods: c_int) callconv(.C) void {
     _ = scancode;
@@ -19,10 +21,10 @@ fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_in
         c.glfwSetWindowShouldClose(window, c.GL_TRUE);
     if (key == c.GLFW_KEY_SPACE and action == c.GLFW_PRESS)
         blowup = !blowup;
-    // if (key == GLFW_KEY_S and action == GLFW_PRESS)
-    // 	screenshot = 1;
-    // if (key == GLFW_KEY_P and action == GLFW_PRESS)
-    // 	premult = !premult;
+    if (key == c.GLFW_KEY_S and action == c.GLFW_PRESS)
+        screenshot = true;
+    if (key == c.GLFW_KEY_P and action == c.GLFW_PRESS)
+        premult = !premult;
 }
 
 pub fn main() !void {
@@ -60,7 +62,7 @@ pub fn main() !void {
 
     var vg = try nvg.gl.init(allocator, .{
         .antialias = true,
-        .stencil_strokes = true,
+        .stencil_strokes = false,
         .debug = true,
     });
     defer vg.deinit();
@@ -88,17 +90,21 @@ pub fn main() !void {
         var winHeight: i32 = undefined;
         c.glfwGetWindowSize(window, &winWidth, &winHeight);
         winWidth = @floatToInt(i32, @intToFloat(f32, winWidth) / scale);
-        winHeight = @floatToInt(i32,  @intToFloat(f32, winHeight) / scale);
+        winHeight = @floatToInt(i32, @intToFloat(f32, winHeight) / scale);
         var fbWidth: i32 = undefined;
         var fbHeight: i32 = undefined;
         c.glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
 
-        // Calculate pixel ration for hi-dpi devices.
+        // Calculate pixel ratio for hi-dpi devices.
         const pxRatio = @intToFloat(f32, fbWidth) / @intToFloat(f32, winWidth);
 
         // Update and render
         c.glViewport(0, 0, fbWidth, fbHeight);
-        c.glClearColor(0.3, 0.3, 0.32, 1.0);
+        if (premult) {
+            c.glClearColor(0, 0, 0, 0);
+        } else {
+            c.glClearColor(0.3, 0.3, 0.32, 1.0);
+        }
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
         _ = dt;
@@ -107,6 +113,15 @@ pub fn main() !void {
         demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @intToFloat(f32, winWidth), @intToFloat(f32, winHeight), @floatCast(f32, t), blowup);
 
         vg.endFrame();
+
+        if (screenshot) {
+            screenshot = false;
+            const data = try Demo.saveScreenshot(allocator, fbWidth, fbHeight, premult);
+            defer allocator.free(data);
+            const file = try std.fs.cwd().createFile("dump.png", .{});
+            defer file.close();
+            try file.writeAll(data);
+        }
 
         c.glfwSwapBuffers(window);
         c.glfwPollEvents();
