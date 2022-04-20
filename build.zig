@@ -19,6 +19,10 @@ pub fn build(b: *std.build.Builder) !void {
         artifact = b.addSharedLibrary("main", "examples/example_wasm.zig", .unversioned);
     } else {
         artifact = b.addExecutable("main", "examples/example_glfw.zig");
+    }
+    artifact.setTarget(target);
+    artifact.setBuildMode(b.standardReleaseOptions());
+    if (target.cpu_arch == null or target.cpu_arch.? != .wasm32) {
         artifact.addIncludePath("lib/gl2/include");
         artifact.addCSourceFile("lib/gl2/src/glad.c", &.{});
         if (target.isWindows()) {
@@ -39,8 +43,6 @@ pub fn build(b: *std.build.Builder) !void {
             artifact.linkSystemLibrary("GL");
         }
     }
-    artifact.setTarget(target);
-    artifact.setBuildMode(b.standardReleaseOptions());
     artifact.addIncludePath("examples");
     artifact.addCSourceFile("examples/stb_image_write.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
     addNanoVGPackage(artifact);

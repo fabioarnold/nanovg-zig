@@ -7,6 +7,7 @@ const c = @cImport({
 });
 
 const Demo = @import("demo.zig");
+const PerfGraph = @import("perf.zig");
 
 const nvg = @import("nanovg");
 
@@ -70,6 +71,7 @@ pub fn main() !void {
     var demo: Demo = undefined;
     demo.load(vg);
     defer demo.free(vg);
+    var fps = PerfGraph.init(.fps, "Frame Time");
 
     c.glfwSwapInterval(0);
 
@@ -80,6 +82,7 @@ pub fn main() !void {
         const t = c.glfwGetTime();
         const dt = t - prevt;
         prevt = t;
+        fps.update(@floatCast(f32, dt));
 
         var mx: f64 = undefined;
         var my: f64 = undefined;
@@ -111,6 +114,7 @@ pub fn main() !void {
         vg.beginFrame(@intToFloat(f32, winWidth), @intToFloat(f32, winHeight), pxRatio);
 
         demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @intToFloat(f32, winWidth), @intToFloat(f32, winHeight), @floatCast(f32, t), blowup);
+        fps.draw(vg, 5, 5);
 
         vg.endFrame();
 
