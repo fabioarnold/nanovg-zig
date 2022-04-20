@@ -267,6 +267,10 @@ const glDeleteVertexArrays = (num, dataPtr) => {
 };
 const glBindVertexArray = (id) => gl.bindVertexArray(glVertexArrays[id]);
 const glPixelStorei = (type, alignment) => gl.pixelStorei(type, alignment);
+const glReadPixels = (x, y, w, h, format, type, pixels) => {
+  const data = new Uint8Array(memory.buffer, pixels);
+  gl.readPixels(x, y, w, h, format, type, data);
+}
 const glGetError = () => gl.getError();
 
 var webgl = {
@@ -337,5 +341,6 @@ var webgl = {
   glDeleteVertexArrays,
   glBindVertexArray,
   glPixelStorei,
+  glReadPixels,
   glGetError,
 };

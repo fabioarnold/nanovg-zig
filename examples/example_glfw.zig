@@ -89,20 +89,20 @@ pub fn main() !void {
         c.glfwGetCursorPos(window, &mx, &my);
         mx /= scale;
         my /= scale;
-        var winWidth: i32 = undefined;
-        var winHeight: i32 = undefined;
-        c.glfwGetWindowSize(window, &winWidth, &winHeight);
-        winWidth = @floatToInt(i32, @intToFloat(f32, winWidth) / scale);
-        winHeight = @floatToInt(i32, @intToFloat(f32, winHeight) / scale);
-        var fbWidth: i32 = undefined;
-        var fbHeight: i32 = undefined;
-        c.glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+        var win_width: i32 = undefined;
+        var win_height: i32 = undefined;
+        c.glfwGetWindowSize(window, &win_width, &win_height);
+        win_width = @floatToInt(i32, @intToFloat(f32, win_width) / scale);
+        win_height = @floatToInt(i32, @intToFloat(f32, win_height) / scale);
+        var fb_width: i32 = undefined;
+        var fb_height: i32 = undefined;
+        c.glfwGetFramebufferSize(window, &fb_width, &fb_height);
 
         // Calculate pixel ratio for hi-dpi devices.
-        const pxRatio = @intToFloat(f32, fbWidth) / @intToFloat(f32, winWidth);
+        const pxRatio = @intToFloat(f32, fb_width) / @intToFloat(f32, win_width);
 
         // Update and render
-        c.glViewport(0, 0, fbWidth, fbHeight);
+        c.glViewport(0, 0, fb_width, fb_height);
         if (premult) {
             c.glClearColor(0, 0, 0, 0);
         } else {
@@ -111,16 +111,16 @@ pub fn main() !void {
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
         _ = dt;
-        vg.beginFrame(@intToFloat(f32, winWidth), @intToFloat(f32, winHeight), pxRatio);
+        vg.beginFrame(@intToFloat(f32, win_width), @intToFloat(f32, win_height), pxRatio);
 
-        demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @intToFloat(f32, winWidth), @intToFloat(f32, winHeight), @floatCast(f32, t), blowup);
+        demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @intToFloat(f32, win_width), @intToFloat(f32, win_height), @floatCast(f32, t), blowup);
         fps.draw(vg, 5, 5);
 
         vg.endFrame();
 
         if (screenshot) {
             screenshot = false;
-            const data = try Demo.saveScreenshot(allocator, fbWidth, fbHeight, premult);
+            const data = try Demo.saveScreenshot(allocator, fb_width, fb_height, premult);
             defer allocator.free(data);
             try std.fs.cwd().writeFile("dump.png", data);
         }

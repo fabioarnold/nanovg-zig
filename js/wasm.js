@@ -12,6 +12,24 @@ const readCharStr = (ptr, len) => {
     return decoder.decode(array)
 }
 
+const download = (filenamePtr, filenameLen, mimetypePtr, mimetypeLen, dataPtr, dataLen) => {
+    const a = document.createElement('a');
+    a.style = 'display:none';
+    document.body.appendChild(a);
+    const view = new Uint8Array(memory.buffer, dataPtr, dataLen);
+    const mimetype = readCharStr(mimetypePtr, mimetypeLen);
+    const blob = new Blob([view], {
+        type: mimetype
+    });
+    const url = window.URL.createObjectURL(blob);
+    a.href = url;
+    const filename = readCharStr(filenamePtr, filenameLen);
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
 const memcpy = (dest, src, n) => {
     const destArray = new Uint8Array(memory.buffer, dest, n);
     const srcArray = new Uint8Array(memory.buffer, src, n);
@@ -30,6 +48,7 @@ const memset = (s, c, n) => {
 var wasm = {
     consoleLog,
     performanceNow,
+    download,
     readCharStr,
     memcpy,
     memset,

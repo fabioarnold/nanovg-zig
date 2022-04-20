@@ -2,6 +2,8 @@ const std = @import("std");
 
 pub extern fn performanceNow() f32;
 
+pub extern fn download(filenamePtr: [*]const u8, filenameLen: usize, mimetypePtr: [*]const u8, mimetypeLen: usize, dataPtr: [*]const u8, dataLen: usize) void;
+
 // Since we're using C libraries we have to use a global allocator.
 pub var global_allocator: std.mem.Allocator = undefined;
 
@@ -13,17 +15,43 @@ export fn malloc(size: usize) callconv(.C) ?*anyopaque {
     return @ptrCast(?*anyopaque, allocation[@sizeOf(usize)..].ptr);
 }
 
+fn getMallocSlice(ptr: *anyopaque) []u8 {
+    const new_p = @intToPtr([*]u8, @ptrToInt(ptr) - @sizeOf(usize));
+    const bytes = new_p[0..@sizeOf(usize)];
+    const size = std.mem.readIntSliceNative(usize, bytes);
+    return new_p[0..size];
+}
+
 export fn realloc(ptr: ?*anyopaque, size: usize) callconv(.C) ?*anyopaque {
-    free(ptr);
-    return malloc(size);
+    const p = ptr orelse return malloc(size);
+    defer free(p);
+    if (size == 0) return null;
+    const slice = getMallocSlice(p)[@sizeOf(usize)..];
+    const new = malloc(size);
+    return memmove(new, slice.ptr, slice.len);
 }
 
 export fn free(ptr: ?*anyopaque) callconv(.C) void {
     const p = ptr orelse return;
-    const new_p = @intToPtr([*]u8, @ptrToInt(p) - @sizeOf(usize));
-    const bytes = new_p[0..@sizeOf(usize)];
-    const size = std.mem.readIntSliceNative(usize, bytes);
-    global_allocator.free(new_p[0..size]);
+    global_allocator.free(getMallocSlice(p));
+}
+
+export fn memmove(dest: ?*anyopaque, src: ?*anyopaque, n: usize) ?*anyopaque {
+    const csrc = @ptrCast([*]u8, src)[0..n];
+    const cdest = @ptrCast([*]u8, dest)[0..n];
+
+    // Create a temporary array to hold data of src
+    var buf: [1 << 12]u8 = undefined;
+    const temp = if (n <= buf.len) buf[0..n] else @ptrCast([*]u8, malloc(n))[0..n];
+    defer if (n > buf.len) free(@ptrCast(*anyopaque, temp));
+
+    for (csrc) |c, i|
+        temp[i] = c;
+
+    for (temp) |c, i|
+        cdest[i] = c;
+
+    return dest;
 }
 
 export fn strlen(s: ?[*:0]const u8) usize {

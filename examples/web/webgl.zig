@@ -143,6 +143,7 @@ pub extern fn glFrontFace(mode: GLenum) void;
 pub extern fn glEnable(cap: GLenum) void;
 pub extern fn glDisable(cap: GLenum) void;
 pub extern fn glGetError() GLenum;
+pub extern fn glReadPixels(x: GLint, y: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, data: ?*anyopaque) void;
 
 //
 // Transformation
