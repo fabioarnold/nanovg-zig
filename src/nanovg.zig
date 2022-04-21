@@ -481,8 +481,8 @@ pub fn transformScale(dst: *[6]f32, sx: f32, sy: f32) void {
 // Sets the transform to rotate matrix. Angle is specified in radians.
 pub fn transformRotate(dst: *[6]f32, a: f32) void {
     const t = dst;
-    const c = @cos(a);
-    const s = @sin(a);
+    const c = std.math.cos(a);
+    const s = std.math.sin(a);
     t[0] = c;
     t[1] = s;
     t[2] = -s;

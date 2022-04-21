@@ -867,7 +867,7 @@ pub const Context = struct {
         // Split arc into max 90 degree segments.
         const ndivs = std.math.clamp(@round(@fabs(da) / (std.math.pi * 0.5)), 1, 5);
         const hda = (da / ndivs) / 2.0;
-        var kappa = @fabs(4.0 / 3.0 * (1.0 - @cos(hda)) / @sin(hda));
+        var kappa = @fabs(4.0 / 3.0 * (1.0 - std.math.cos(hda)) / std.math.sin(hda));
 
         if (dir == .ccw)
             kappa = -kappa;
@@ -879,8 +879,8 @@ pub const Context = struct {
         var i: f32 = 0;
         while (i <= ndivs) : (i += 1) {
             const a = a0 + da * (i / ndivs);
-            const dx = @cos(a);
-            const dy = @sin(a);
+            const dx = std.math.cos(a);
+            const dy = std.math.sin(a);
             const x = cx + dx * r;
             const y = cy + dy * r;
             const tanx = -dy * r * kappa;
@@ -2113,8 +2113,8 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
         while (i < n) : (i += 1) {
             const u = i / (n - 1);
             const a = a0 + u * (a1 - a0);
-            const rx = p1.x + @cos(a) * rw;
-            const ry = p1.y + @sin(a) * rw;
+            const rx = p1.x + std.math.cos(a) * rw;
+            const ry = p1.y + std.math.sin(a) * rw;
             dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
             dst.addOneAssumeCapacity().set(rx, ry, ru, 1);
         }
@@ -2140,8 +2140,8 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
         while (i < n) : (i += 1) {
             const u = i / (n - 1);
             const a = a0 + u * (a1 - a0);
-            const lx = p1.x + @cos(a) * lw;
-            const ly = p1.y + @sin(a) * lw;
+            const lx = p1.x + std.math.cos(a) * lw;
+            const ly = p1.y + std.math.sin(a) * lw;
             dst.addOneAssumeCapacity().set(lx, ly, lu, 1);
             dst.addOneAssumeCapacity().set(p1.x, p1.y, 0.5, 1);
         }
@@ -2256,8 +2256,8 @@ fn roundCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, nc
     var i: u32 = 0;
     while (i < ncap) : (i += 1) {
         const a = @intToFloat(f32, i) / @intToFloat(f32, ncap - 1) * std.math.pi;
-        const ax = @cos(a) * w;
-        const ay = @sin(a) * w;
+        const ax = std.math.cos(a) * w;
+        const ay = std.math.sin(a) * w;
         dst.addOneAssumeCapacity().set(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, @"u0", 1);
         dst.addOneAssumeCapacity().set(px, py, 0.5, 1);
     }
@@ -2276,8 +2276,8 @@ fn roundCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap
     var i: u32 = 0;
     while (i < ncap) : (i += 1) {
         const a = @intToFloat(f32, i) / @intToFloat(f32, ncap - 1) * std.math.pi;
-        const ax = @cos(a) * w;
-        const ay = @sin(a) * w;
+        const ax = std.math.cos(a) * w;
+        const ay = std.math.sin(a) * w;
         dst.addOneAssumeCapacity().set(px, py, 0.5, 1);
         dst.addOneAssumeCapacity().set(px - dlx * ax + dx * ay, py - dly * ax + dy * ay, @"u0", 1);
     }
