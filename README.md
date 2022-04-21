@@ -3,7 +3,7 @@ NanoVG - Zig Version
 
 This is a rewrite of the original [NanoVG library](https://github.com/memononen/nanovg) using the [Zig programming language](https://ziglang.org).
 
-NanoVG is a small antialiased hardware-accelerated vector graphics library. It has a lean API modeled after the HTML5 canvas API. It is aimed to be a practical and fun toolset for building scalable user interfaces or any other real time visualizations.
+NanoVG is a small anti-aliased hardware-accelerated vector graphics library. It has a lean API modeled after the HTML5 canvas API. It is aimed to be a practical and fun toolset for building scalable user interfaces or any other real time visualizations.
 
 ## Screenshot
 
@@ -52,7 +52,7 @@ The second parameter defines options for creating the renderer.
 - `antialias` means that the renderer adjusts the geometry to include anti-aliasing. If you're using MSAA, you can omit this option to be default initialized as false. 
 - `stencil_strokes` means that the render uses better quality rendering for (overlapping) strokes. The quality is mostly visible on wider strokes. If you want speed, you can omit this option to be default initialized as false.
 
-Currently there is an OpenGL back-end for NanoVG: [nanovg_gl.zig](/src/nanovg_gl.zig) for OpenGL 2.0 and WebGL. WebGL is automatically chosen when targeting WebAssembly. There's an interface called `Params` defined in [internal.zig](src/internal.zig) which can be implemented by additional backends.
+Currently, there is an OpenGL backend for NanoVG: [nanovg_gl.zig](/src/nanovg_gl.zig) for OpenGL 2.0 and WebGL. WebGL is automatically chosen when targeting WebAssembly. There's an interface called `Params` defined in [internal.zig](src/internal.zig), which can be implemented by additional backends.
 
 *NOTE:* The render target you're rendering to must have a stencil buffer.
 
@@ -71,11 +71,11 @@ vg.fillColor(nvg.rgba(255,192,0,255));
 vg.fill();
 ```
 
-Calling `beginPath()` will clear any existing paths and start drawing from blank slate. There are a number of functions to define the path to draw, such as rectangle, rounded rectangle and ellipse, or you can use the common moveTo, lineTo, bezierTo and arcTo API to compose a path step-by-step.
+Calling `beginPath()` will clear any existing paths and start drawing from a blank slate. There are a number of functions to define the path to draw, such as rectangle, rounded rectangle and ellipse, or you can use the common moveTo, lineTo, bezierTo and arcTo API to compose a path step-by-step.
 
 ## Understanding Composite Paths
 
-Because of the way the rendering backend is built in NanoVG, drawing a composite path - that is a path consisting of multiple paths defining holes and fills - is a bit more involved. NanoVG uses even-odd filling rule and by default the paths are wound in counterclockwise order. Keep that in mind when drawing using the low level draw API. In order to wind one of the predefined shapes as a hole, you should call `pathWinding(nvg.Winding.solidity(.hole))`, or `pathWinding(.cw)` **_after_** defining the path.
+Because of the way the rendering backend is built in NanoVG, drawing a composite path - that is a path consisting of multiple paths defining holes and fills - is a bit more involved. NanoVG uses the even-odd filling rule and by default the paths are wound in counterclockwise order. Keep that in mind when drawing using the low-level drawing API. In order to wind one of the predefined shapes as a hole, you should call `pathWinding(nvg.Winding.solidity(.hole))`, or `pathWinding(.cw)` **_after_** defining the path.
 
 ```zig
 vg.beginPath();
