@@ -61,5 +61,6 @@ var wasm = {
     sqrt: Math.sqrt,
     expf: Math.exp,
     pow: Math.pow,
+    ceil: Math.ceil,
     ldexp: (x, exp) => x * Math.pow(2, exp)
 }
