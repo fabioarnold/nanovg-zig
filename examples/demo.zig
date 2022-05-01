@@ -99,7 +99,7 @@ pub fn draw(demo: Demo, vg: nvg, mx: f32, my: f32, width: f32, height: f32, t: f
 
     vg.save();
     if (blowup) {
-        vg.rotate(std.math.sin(t * 0.3) * 5.0 / 180.0 * std.math.pi);
+        vg.rotate(@sin(t * 0.3) * 5.0 / 180.0 * std.math.pi);
         vg.scale(2.0, 2.0);
     }
 
@@ -420,7 +420,7 @@ fn drawEyes(vg: nvg, x: f32, y: f32, w: f32, h: f32, mx: f32, my: f32, t: f32) v
     const rx = x + w - ex;
     const ry = y + ey;
     const br = (if (ex < ey) ex else ey) * 0.5;
-    const blink = 1 - std.math.pow(f32, std.math.sin(t * 0.5), 200) * 0.8;
+    const blink = 1 - std.math.pow(f32, @sin(t * 0.5), 200) * 0.8;
 
     var bg = vg.linearGradient(x, y + h * 0.5, x + w * 0.1, y + h, nvg.rgba(0, 0, 0, 32), nvg.rgba(0, 0, 0, 16));
     vg.beginPath();
@@ -598,12 +598,12 @@ fn drawGraph(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
     const dx = w / 5.0;
 
     const samples = [_]f32{
-        (1 + std.math.sin(t * 1.2345 + std.math.cos(t * 0.33457) * 0.44)) * 0.5,
-        (1 + std.math.sin(t * 0.68363 + std.math.cos(t * 1.3) * 1.55)) * 0.5,
-        (1 + std.math.sin(t * 1.1642 + std.math.cos(t * 0.33457) * 1.24)) * 0.5,
-        (1 + std.math.sin(t * 0.56345 + std.math.cos(t * 1.63) * 0.14)) * 0.5,
-        (1 + std.math.sin(t * 1.6245 + std.math.cos(t * 0.254) * 0.3)) * 0.5,
-        (1 + std.math.sin(t * 0.345 + std.math.cos(t * 0.03) * 0.6)) * 0.5,
+        (1 + @sin(t * 1.2345 + @cos(t * 0.33457) * 0.44)) * 0.5,
+        (1 + @sin(t * 0.68363 + @cos(t * 1.3) * 1.55)) * 0.5,
+        (1 + @sin(t * 1.1642 + @cos(t * 0.33457) * 1.24)) * 0.5,
+        (1 + @sin(t * 0.56345 + @cos(t * 1.63) * 0.14)) * 0.5,
+        (1 + @sin(t * 1.6245 + @cos(t * 0.254) * 0.3)) * 0.5,
+        (1 + @sin(t * 0.345 + @cos(t * 0.03) * 0.6)) * 0.5,
     };
 
     var sx: [6]f32 = undefined;
@@ -683,10 +683,10 @@ fn drawSpinner(vg: nvg, cx: f32, cy: f32, r: f32, t: f32) void {
     vg.arc(cx, cy, r0, a0, a1, .cw);
     vg.arc(cx, cy, r1, a1, a0, .ccw);
     vg.closePath();
-    const ax = cx + std.math.cos(a0) * (r0 + r1) * 0.5;
-    const ay = cy + std.math.sin(a0) * (r0 + r1) * 0.5;
-    const bx = cx + std.math.cos(a1) * (r0 + r1) * 0.5;
-    const by = cy + std.math.sin(a1) * (r0 + r1) * 0.5;
+    const ax = cx + @cos(a0) * (r0 + r1) * 0.5;
+    const ay = cy + @sin(a0) * (r0 + r1) * 0.5;
+    const bx = cx + @cos(a1) * (r0 + r1) * 0.5;
+    const by = cy + @sin(a1) * (r0 + r1) * 0.5;
     const paint = vg.linearGradient(ax, ay, bx, by, nvg.rgba(0, 0, 0, 0), nvg.rgba(0, 0, 0, 128));
     vg.fillPaint(paint);
     vg.fill();
@@ -699,8 +699,8 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
     const thumb = 60.0;
     const arry = 30.5;
     const stackh = @intToFloat(f32, images.len / 2) * (thumb + 10.0) + 10.0;
-    const u = (1 + std.math.cos(t * 0.5)) * 0.5;
-    const uu = (1 - std.math.cos(t * 0.2)) * 0.5;
+    const u = (1 + @cos(t * 0.5)) * 0.5;
+    const uu = (1 - @cos(t * 0.2)) * 0.5;
 
     vg.save();
 
@@ -812,7 +812,7 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
 }
 
 fn drawColorwheel(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
-    const hue = std.math.sin(t * 0.12);
+    const hue = @sin(t * 0.12);
     var paint: nvg.Paint = undefined;
 
     vg.save();
@@ -832,10 +832,10 @@ fn drawColorwheel(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
         vg.arc(cx, cy, r0, a0, a1, .cw);
         vg.arc(cx, cy, r1, a1, a0, .ccw);
         vg.closePath();
-        const ax = cx + std.math.cos(a0) * (r0 + r1) * 0.5;
-        const ay = cy + std.math.sin(a0) * (r0 + r1) * 0.5;
-        const bx = cx + std.math.cos(a1) * (r0 + r1) * 0.5;
-        const by = cy + std.math.sin(a1) * (r0 + r1) * 0.5;
+        const ax = cx + @cos(a0) * (r0 + r1) * 0.5;
+        const ay = cy + @sin(a0) * (r0 + r1) * 0.5;
+        const bx = cx + @cos(a1) * (r0 + r1) * 0.5;
+        const by = cy + @sin(a1) * (r0 + r1) * 0.5;
         paint = vg.linearGradient(ax, ay, bx, by, nvg.hsla(a0 / (std.math.pi * 2.0), 1.0, 0.55, 255), nvg.hsla(a1 / (std.math.pi * 2.0), 1.0, 0.55, 255));
         vg.fillPaint(paint);
         vg.fill();
@@ -870,10 +870,10 @@ fn drawColorwheel(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
 
     // Center triangle
     const r = r0 - 6;
-    var ax = -0.5 * r; // std.math.cos(120.0 / 180.0 * std.math.pi) * r;
-    var ay = 0.86602540378 * r; // std.math.sin(120.0 / 180.0 * std.math.pi) * r;
-    const bx = -0.5 * r; // std.math.cos(-120.0 / 180.0 * std.math.pi) * r;
-    const by = -0.86602540378 * r; // std.math.sin(-120.0 / 180.0 * std.math.pi) * r;
+    var ax = -0.5 * r; // @cos(120.0 / 180.0 * std.math.pi) * r;
+    var ay = 0.86602540378 * r; // @sin(120.0 / 180.0 * std.math.pi) * r;
+    const bx = -0.5 * r; // @cos(-120.0 / 180.0 * std.math.pi) * r;
+    const by = -0.86602540378 * r; // @sin(-120.0 / 180.0 * std.math.pi) * r;
     vg.beginPath();
     vg.moveTo(r, 0);
     vg.lineTo(ax, ay);
@@ -889,8 +889,8 @@ fn drawColorwheel(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
     vg.stroke();
 
     // Select circle on triangle
-    ax = -0.5 * r * 0.3; // std.math.cos(120.0 / 180.0 * std.math.pi) * r * 0.3;
-    ay = 0.86602540378 * r * 0.4; // std.math.sin(120.0 / 180.0 * std.math.pi) * r * 0.4;
+    ax = -0.5 * r * 0.3; // @cos(120.0 / 180.0 * std.math.pi) * r * 0.3;
+    ay = 0.86602540378 * r * 0.4; // @sin(120.0 / 180.0 * std.math.pi) * r * 0.4;
     vg.strokeWidth(2.0);
     vg.beginPath();
     vg.circle(ax, ay, 5);
@@ -915,10 +915,10 @@ fn drawLines(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
     const joins = [_]nvg.LineJoin{ .miter, .round, .bevel };
     const caps = [_]nvg.LineCap{ .butt, .round, .square };
     const pts = [_]f32{
-        -s * 0.25 + std.math.cos(t * 0.3) * s * 0.5, std.math.sin(t * 0.3) * s * 0.5,
+        -s * 0.25 + @cos(t * 0.3) * s * 0.5, @sin(t * 0.3) * s * 0.5,
         -s * 0.25,                           0,
         s * 0.25,                            0,
-        s * 0.25 + std.math.cos(-t * 0.3) * s * 0.5, std.math.sin(-t * 0.3) * s * 0.5,
+        s * 0.25 + @cos(-t * 0.3) * s * 0.5, @sin(-t * 0.3) * s * 0.5,
     };
 
     vg.save();
