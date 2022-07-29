@@ -92,3 +92,13 @@ export fn onAnimationFrame() void {
         wasm.download(filename, filename.len, mimetype, mimetype.len, data.ptr, data.len);
     }
 }
+
+pub fn log(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const prefix = "[" ++ @tagName(level) ++ "] " ++ "(" ++ @tagName(scope) ++ "): ";
+    console.log(prefix ++ format ++ "\n", args);
+}
