@@ -4,11 +4,13 @@ fn getRootDir() []const u8 {
     return std.fs.path.dirname(@src().file) orelse ".";
 }
 
+const root_dir = getRootDir();
+
 pub fn addNanoVGPackage(artifact: *std.build.LibExeObjStep) void {
-    artifact.addPackagePath("nanovg", getRootDir() ++ "/src/nanovg.zig");
-    artifact.addIncludePath(getRootDir() ++ "/src");
-    artifact.addCSourceFile(getRootDir() ++ "/src/fontstash.c", &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" });
-    artifact.addCSourceFile(getRootDir() ++ "/src/stb_image.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
+    artifact.addPackagePath("nanovg", root_dir ++ "/src/nanovg.zig");
+    artifact.addIncludePath(root_dir ++ "/src");
+    artifact.addCSourceFile(root_dir ++ "/src/fontstash.c", &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" });
+    artifact.addCSourceFile(root_dir ++ "/src/stb_image.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
     artifact.linkLibC();
 }
 
