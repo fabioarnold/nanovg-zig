@@ -1514,15 +1514,15 @@ pub const Context = struct {
 
             if (ctype == .newline) {
                 // Always handle new lines.
-                const start = if (rowStart != null) rowStart else iter.str;
-                const e = if (rowEnd != null) rowEnd else iter.str;
+                const start = if (rowStart != null) rowStart.? else iter.str;
+                const e = if (rowEnd != null) rowEnd.? else iter.str;
                 var n = @ptrToInt(e) - @ptrToInt(start);
-                rows[nrows].text = start.?[0..n];
+                rows[nrows].text = start[0..n];
                 rows[nrows].width = rowWidth * invs;
                 rows[nrows].minx = rowMinX * invs;
                 rows[nrows].maxx = rowMaxX * invs;
                 n = @ptrToInt(end) - @ptrToInt(iter.next);
-                rows[nrows].next = iter.next.?[0..n];
+                rows[nrows].next = iter.next[0..n];
                 nrows += 1;
                 if (nrows >= rows.len)
                     return nrows;
@@ -1588,7 +1588,7 @@ pub const Context = struct {
                             rows[nrows].minx = rowMinX * invs;
                             rows[nrows].maxx = rowMaxX * invs;
                             n = @ptrToInt(end) - @ptrToInt(iter.str);
-                            rows[nrows].next = iter.str.?[0..n];
+                            rows[nrows].next = iter.str[0..n];
                             nrows += 1;
                             if (nrows >= rows.len)
                                 return nrows;
@@ -1835,18 +1835,18 @@ pub const Path = struct {
 pub const Params = struct {
     user_ptr: *anyopaque,
     edge_antialias: bool,
-    renderCreate: fn (uptr: *anyopaque) anyerror!void,
-    renderCreateTexture: fn (uptr: *anyopaque, tex_type: TextureType, w: i32, h: i32, image_flags: ImageFlags, data: ?[*]const u8) anyerror!i32,
-    renderDeleteTexture: fn (uptr: *anyopaque, image: i32) void,
-    renderUpdateTexture: fn (uptr: *anyopaque, image: i32, x: i32, y: i32, w: i32, h: i32, data: ?[*]const u8) i32,
-    renderGetTextureSize: fn (uptr: *anyopaque, image: i32, w: *i32, h: *i32) i32,
-    renderViewport: fn (uptr: *anyopaque, width: f32, height: f32, device_pixel_ratio: f32) void,
-    renderCancel: fn (uptr: *anyopaque) void,
-    renderFlush: fn (uptr: *anyopaque) void,
-    renderFill: fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, bounds: [4]f32, paths: []const Path) void,
-    renderStroke: fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, stroke_width: f32, paths: []const Path) void,
-    renderTriangles: fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, verts: []const Vertex) void,
-    renderDelete: fn (uptr: *anyopaque) void,
+    renderCreate: std.meta.FnPtr(fn (uptr: *anyopaque) anyerror!void),
+    renderCreateTexture: std.meta.FnPtr(fn (uptr: *anyopaque, tex_type: TextureType, w: i32, h: i32, image_flags: ImageFlags, data: ?[*]const u8) anyerror!i32),
+    renderDeleteTexture: std.meta.FnPtr(fn (uptr: *anyopaque, image: i32) void),
+    renderUpdateTexture: std.meta.FnPtr(fn (uptr: *anyopaque, image: i32, x: i32, y: i32, w: i32, h: i32, data: ?[*]const u8) i32),
+    renderGetTextureSize: std.meta.FnPtr(fn (uptr: *anyopaque, image: i32, w: *i32, h: *i32) i32),
+    renderViewport: std.meta.FnPtr(fn (uptr: *anyopaque, width: f32, height: f32, device_pixel_ratio: f32) void),
+    renderCancel: std.meta.FnPtr(fn (uptr: *anyopaque) void),
+    renderFlush: std.meta.FnPtr(fn (uptr: *anyopaque) void),
+    renderFill: std.meta.FnPtr(fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, bounds: [4]f32, paths: []const Path) void),
+    renderStroke: std.meta.FnPtr(fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, stroke_width: f32, paths: []const Path) void),
+    renderTriangles: std.meta.FnPtr(fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, verts: []const Vertex) void),
+    renderDelete: std.meta.FnPtr(fn (uptr: *anyopaque) void),
 };
 
 const State = struct {
