@@ -87,7 +87,7 @@ export fn strncmp(s1: ?[*]u8, s2: ?[*]u8, n: usize) c_int {
     return 1;
 }
 
-export fn strtol(nptr: [*]const u8, endptr: [*]?[*]const u8, base: c_int) c_long {
+export fn strtol(nptr: [*]const u8, endptr: *?[*]const u8, base: c_int) c_long {
     if (base != 10) unreachable; // not implemented
     var l: c_long = 0;
     var i: usize = 0;
