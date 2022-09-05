@@ -1,11 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const nvg = @import("nanovg");
 
 const wasm = @import("web/wasm.zig");
+pub const log = wasm.log;
+pub const log_level = .info;
 const gl = @import("web/webgl.zig");
 const keys = @import("web/keys.zig");
-const console = @import("web/console.zig");
 
 const Demo = @import("demo.zig");
 const PerfGraph = @import("perf.zig");
@@ -14,8 +16,12 @@ var video_width: f32 = 1280;
 var video_height: f32 = 720;
 var video_scale: f32 = 1;
 
-var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
+var global_arena: std.heap.ArenaAllocator = undefined;
+var gpa: std.heap.GeneralPurposeAllocator(.{
+    .safety = false,
+}) = undefined;
 var allocator: std.mem.Allocator = undefined;
+
 var vg: nvg = undefined;
 var demo: Demo = undefined;
 var fps: PerfGraph = undefined;
@@ -27,13 +33,19 @@ var blowup: bool = false;
 var screenshot: bool = false;
 var premult: bool = false;
 
+const logger = std.log.scoped(.example_wasm);
+
 export fn onInit() void {
-    gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    global_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    gpa = .{
+        .backing_allocator = global_arena.allocator(),
+    };
     allocator = gpa.allocator();
+    
     wasm.global_allocator = allocator;
 
     vg = nvg.gl.init(allocator, .{}) catch {
-        console.log("Failed to create NanoVG", .{});
+        logger.err("Failed to create NanoVG", .{});
         return;
     };
 
@@ -91,14 +103,4 @@ export fn onAnimationFrame() void {
         const mimetype = "image/png";
         wasm.download(filename, filename.len, mimetype, mimetype.len, data.ptr, data.len);
     }
-}
-
-pub fn log(
-    comptime level: std.log.Level,
-    comptime scope: @TypeOf(.EnumLiteral),
-    comptime format: []const u8,
-    args: anytype,
-) void {
-    const prefix = "[" ++ @tagName(level) ++ "] " ++ "(" ++ @tagName(scope) ++ "): ";
-    console.log(prefix ++ format ++ "\n", args);
 }

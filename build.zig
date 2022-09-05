@@ -19,6 +19,7 @@ pub fn build(b: *std.build.Builder) !void {
     const target = b.standardTargetOptions(.{});
     if (target.cpu_arch != null and (target.cpu_arch.? == .wasm32 or target.cpu_arch.? == .wasm64)) {
         artifact = b.addSharedLibrary("main", "examples/example_wasm.zig", .unversioned);
+        artifact.use_stage1 = true;
     } else {
         artifact = b.addExecutable("main", "examples/example_glfw.zig");
     }

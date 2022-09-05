@@ -1,39 +1,70 @@
 const std = @import("std");
+const logger = std.log.scoped(.wasm);
 
 pub extern fn performanceNow() f32;
 
 pub extern fn download(filenamePtr: [*]const u8, filenameLen: usize, mimetypePtr: [*]const u8, mimetypeLen: usize, dataPtr: [*]const u8, dataLen: usize) void;
 
+extern fn wasm_log_write(ptr: [*]const u8, len: usize) void;
+
+extern fn wasm_log_flush() void;
+
+const WriteError = error{};
+const LogWriter = std.io.Writer(void, WriteError, writeLog);
+
+fn writeLog(_: void, msg: []const u8) WriteError!usize {
+    wasm_log_write(msg.ptr, msg.len);
+    return msg.len;
+}
+
+/// Overwrite default log handler
+pub fn log(
+    comptime message_level: std.log.Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const level_txt = switch (message_level) {
+        .err => "error",
+        .warn => "warning",
+        .info => "info",
+        .debug => "debug",
+    };
+    const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
+
+    (LogWriter{ .context = {} }).print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
+
+    wasm_log_flush();
+}
+
 // Since we're using C libraries we have to use a global allocator.
 pub var global_allocator: std.mem.Allocator = undefined;
 
-export fn malloc(size: usize) callconv(.C) ?*anyopaque {
-    const new_size = @sizeOf(usize) + size;
-    const allocation = global_allocator.alloc(u8, new_size) catch return null;
-    const bytes = allocation[0..@sizeOf(usize)];
-    std.mem.writeIntSliceNative(usize, bytes, new_size);
-    return @ptrCast(?*anyopaque, allocation[@sizeOf(usize)..].ptr);
-}
+const malloc_alignment = 16;
 
-fn getMallocSlice(ptr: *anyopaque) []u8 {
-    const new_p = @intToPtr([*]u8, @ptrToInt(ptr) - @sizeOf(usize));
-    const bytes = new_p[0..@sizeOf(usize)];
-    const size = std.mem.readIntSliceNative(usize, bytes);
-    return new_p[0..size];
+export fn malloc(size: usize) callconv(.C) ?*anyopaque {
+    const buffer = global_allocator.allocAdvanced(u8, malloc_alignment, size + malloc_alignment, .exact) catch {
+        logger.err("Allocation failure for size={}", .{size});
+        return null;
+    };
+    std.mem.writeIntNative(usize, buffer[0..@sizeOf(usize)], buffer.len);
+    return buffer.ptr + malloc_alignment;
 }
 
 export fn realloc(ptr: ?*anyopaque, size: usize) callconv(.C) ?*anyopaque {
     const p = ptr orelse return malloc(size);
     defer free(p);
     if (size == 0) return null;
-    const slice = getMallocSlice(p)[@sizeOf(usize)..];
+    const actual_buffer = @ptrCast([*]u8, p) - malloc_alignment;
+    const len = std.mem.readIntNative(usize, actual_buffer[0..@sizeOf(usize)]);
     const new = malloc(size);
-    return memmove(new, slice.ptr, slice.len);
+    return memmove(new, actual_buffer + malloc_alignment, len);
 }
 
 export fn free(ptr: ?*anyopaque) callconv(.C) void {
-    const p = ptr orelse return;
-    global_allocator.free(getMallocSlice(p));
+    const actual_buffer = @ptrCast([*]u8, ptr orelse return) - 16;
+    const len = std.mem.readIntNative(usize, actual_buffer[0..@sizeOf(usize)]);
+    global_allocator.free(actual_buffer[0..len]);
 }
 
 export fn memmove(dest: ?*anyopaque, src: ?*anyopaque, n: usize) ?*anyopaque {
@@ -52,6 +83,20 @@ export fn memmove(dest: ?*anyopaque, src: ?*anyopaque, n: usize) ?*anyopaque {
         cdest[i] = c;
 
     return dest;
+}
+
+export fn memcpy(dst: ?[*]u8, src: ?[*]const u8, num: usize) ?[*]u8 {
+    if (dst == null or src == null)
+        @panic("Invalid usage of memcpy!");
+    std.mem.copy(u8, dst.?[0..num], src.?[0..num]);
+    return dst;
+}
+
+export fn memset(ptr: ?[*]u8, value: c_int, num: usize) ?[*]u8 {
+    if (ptr == null)
+        @panic("Invalid usage of memset!");
+    std.mem.set(u8, ptr.?[0..num], @intCast(u8, value));
+    return ptr;
 }
 
 export fn strlen(s: ?[*:0]const u8) usize {

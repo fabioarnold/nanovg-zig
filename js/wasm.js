@@ -12,6 +12,17 @@ const readCharStr = (ptr, len) => {
     return decoder.decode(array)
 }
 
+let log_string = '';
+
+const wasm_log_write = (ptr, len) => {
+    log_string += readCharStr(ptr, len)
+}
+
+const wasm_log_flush = () => {
+    console.log(log_string)
+    log_string = ''
+}
+
 const download = (filenamePtr, filenameLen, mimetypePtr, mimetypeLen, dataPtr, dataLen) => {
     const a = document.createElement('a');
     a.style = 'display:none';
@@ -30,28 +41,13 @@ const download = (filenamePtr, filenameLen, mimetypePtr, mimetypeLen, dataPtr, d
     document.body.removeChild(a);
 }
 
-const memcpy = (dest, src, n) => {
-    const destArray = new Uint8Array(memory.buffer, dest, n);
-    const srcArray = new Uint8Array(memory.buffer, src, n);
-    for (let i = 0; i < n; i++) {
-        destArray[i] = srcArray[i];
-    }
-}
-
-const memset = (s, c, n) => {
-    const arr = new Uint8Array(memory.buffer, s, n);
-    for (let i = 0; i < n; i++) {
-        arr[i] = c;
-    }
-}
-
 var wasm = {
     consoleLog,
+    wasm_log_write,
+    wasm_log_flush,
     performanceNow,
     download,
     readCharStr,
-    memcpy,
-    memset,
     fmodf: (x, y) => x % y,
     sinf: Math.sin,
     cosf: Math.cos,

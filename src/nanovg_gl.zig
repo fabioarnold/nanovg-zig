@@ -10,7 +10,8 @@ else
     @cImport({
         @cInclude("glad/glad.h");
     });
-const print = if (builtin.cpu.arch.isWasm()) @import("web/console.zig").log else std.debug.print;
+
+const logger = std.log.scoped(.nanovg_gl);
 
 const nvg = @import("nanovg.zig");
 const internal = @import("internal.zig");
@@ -92,7 +93,7 @@ const GLContext = struct {
         if (!ctx.options.debug) return;
         const err = gl.glGetError();
         if (err != gl.GL_NO_ERROR) {
-            print("GLError {X:0>8} after {s}\n", .{ err, str });
+            logger.err("GLError {X:0>8} after {s}", .{ err, str });
         }
     }
 
@@ -212,7 +213,7 @@ const Shader = struct {
         gl.glGetShaderInfoLog(shader, 512, &len, &buf[0]);
         if (len > 512) len = 512;
         const log = buf[0..@intCast(usize, len)];
-        print("Shader {s}/{s} error:\n{s}\n", .{ name, shader_type, log });
+        logger.err("Shader {s}/{s} error:\n{s}", .{ name, shader_type, log });
     }
 
     fn printProgramErrorLog(program: gl.GLuint, name: []const u8) void {
@@ -221,7 +222,7 @@ const Shader = struct {
         gl.glGetProgramInfoLog(program, 512, &len, &buf[0]);
         if (len > 512) len = 512;
         const log = buf[0..@intCast(usize, len)];
-        print("Program {s} error:\n{s}\n", .{ name, log });
+        logger.err("Program {s} error:\n{s}", .{ name, log });
     }
 };
 
