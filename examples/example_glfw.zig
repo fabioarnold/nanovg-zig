@@ -33,7 +33,7 @@ pub fn main() !void {
     var prevt: f64 = 0;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+    const allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
 
     if (c.glfwInit() == c.GLFW_FALSE) {
         return error.GLFWInitFailed;
