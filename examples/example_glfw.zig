@@ -110,7 +110,6 @@ pub fn main() !void {
         }
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
-        _ = dt;
         vg.beginFrame(@intToFloat(f32, win_width), @intToFloat(f32, win_height), pxRatio);
 
         demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @intToFloat(f32, win_width), @intToFloat(f32, win_height), @floatCast(f32, t), blowup);

@@ -134,7 +134,6 @@ pub fn draw(demo: Demo, vg: nvg, mx: f32, my: f32, width: f32, height: f32, t: f
     drawButton(vg, ICON_TRASH, "Delete", x, y, 160, 28, nvg.rgba(128, 16, 8, 255));
     drawButton(vg, 0, "Cancel", x + 170, y, 110, 28, nvg.rgba(0, 0, 0, 0));
 
-    _ = demo;
     // Thumbnails box
     drawThumbnails(vg, 365, popy - 30, 160, 300, demo.images[0..], t);
 
