@@ -454,6 +454,7 @@ pub const Context = struct {
             var p0 = &pts[pts.len - 1];
             if (ptEquals(p0.x, p0.y, pts[0].x, pts[0].y, ctx.dist_tol)) {
                 path.count -= 1;
+                if (path.count == 0) continue;
                 pts.len -= 1;
                 path.closed = true;
             }
@@ -490,6 +491,7 @@ pub const Context = struct {
 
         // Calculate which joins needs extra vertices to append, and gather vertex count.
         for (cache.paths.items) |*path| {
+            if (path.count == 0) continue;
             const pts = cache.points.items[path.first..][0..path.count];
             var nleft: u32 = 0;
             path.nbevel = 0;
@@ -684,6 +686,7 @@ pub const Context = struct {
         var verts = try cache.allocTempVerts(cverts);
 
         for (cache.paths.items) |*path| {
+            if (path.count == 0) continue;
             const pts = cache.points.items[path.first..][0..path.count];
 
             path.fill = &.{};
