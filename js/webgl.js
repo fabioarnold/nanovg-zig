@@ -227,13 +227,9 @@ const glGenTextures = (num, dataPtr) => {
 const glDeleteTextures = (num, dataPtr) => {
   const textures = new Uint32Array(memory.buffer, dataPtr, num);
   for (let n = 0; n < num; n++) {
-    gl.glCreateTexture(buffers[n]);
+    gl.deleteTexture(glTextures[textures[n]]);
     glTextures[textures[n]] = undefined;
   }
-};
-const glDeleteTexture = (id) => {
-  gl.deleteTexture(glShaders[id]);
-  glTextures[id] = undefined;
 };
 const glBindTexture = (target, textureId) => gl.bindTexture(target, glTextures[textureId]);
 const glTexImage2D = (target, level, internalFormat, width, height, border, format, type, dataPtr, dataLen) => {
@@ -329,7 +325,6 @@ var webgl = {
   glCreateTexture,
   glGenTextures,
   glDeleteTextures,
-  glDeleteTexture,
   glBindTexture,
   glTexImage2D,
   glTexSubImage2D,
