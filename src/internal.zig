@@ -303,31 +303,33 @@ pub const Context = struct {
     pub fn endFrame(ctx: *Context) void {
         ctx.params.renderFlush(ctx.params.user_ptr);
         if (ctx.font_image_idx != 0) {
-            const fontImage = ctx.font_images[ctx.font_image_idx];
-            // delete images that smaller than current one
-            if (fontImage == 0)
+            const font_image = ctx.font_images[ctx.font_image_idx];
+            // delete images that are smaller than current one
+            if (font_image == 0)
                 return;
             var iw: i32 = undefined;
             var ih: i32 = undefined;
-            ctx.imageSize(fontImage, &iw, &ih);
+            ctx.imageSize(font_image, &iw, &ih);
             var i: u32 = 0;
             var j: u32 = 0;
             while (i < ctx.font_image_idx) : (i += 1) {
                 if (ctx.font_images[i] != 0) {
                     var nw: i32 = undefined;
                     var nh: i32 = undefined;
-                    ctx.imageSize(ctx.font_images[i], &nw, &nh);
+                    const image = ctx.font_images[i];
+                    ctx.font_images[i] = 0;
+                    ctx.imageSize(image, &nw, &nh);
                     if (nw < iw or nh < ih) {
-                        ctx.deleteImage(ctx.font_images[i]);
+                        ctx.deleteImage(image);
                     } else {
-                        ctx.font_images[j] = ctx.font_images[i];
+                        ctx.font_images[j] = image;
                         j += 1;
                     }
                 }
             }
             // make current font image to first
             ctx.font_images[j] = ctx.font_images[0];
-            ctx.font_images[0] = fontImage;
+            ctx.font_images[0] = font_image;
             ctx.font_image_idx = 0;
         }
     }
