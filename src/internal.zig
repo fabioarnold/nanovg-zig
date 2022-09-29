@@ -328,6 +328,7 @@ pub const Context = struct {
                 }
             }
             // make current font image to first
+            ctx.font_images[ctx.font_image_idx] = 0;
             ctx.font_images[j] = ctx.font_images[0];
             ctx.font_images[0] = font_image;
             ctx.font_image_idx = 0;
