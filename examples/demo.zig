@@ -1048,9 +1048,9 @@ fn unpremultiplyAlpha(image: []u8, w: usize, h: usize, stride: usize) void {
             const b = @as(u32, row[2]);
             const a = @as(u32, row[3]);
             if (a != 0) {
-                row[0] = @truncate(u8, @minimum(r * 255 / a, 255));
-                row[1] = @truncate(u8, @minimum(g * 255 / a, 255));
-                row[2] = @truncate(u8, @minimum(b * 255 / a, 255));
+                row[0] = @truncate(u8, @min(r * 255 / a, 255));
+                row[1] = @truncate(u8, @min(g * 255 / a, 255));
+                row[2] = @truncate(u8, @min(b * 255 / a, 255));
             }
         }
     }
