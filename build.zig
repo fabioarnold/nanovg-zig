@@ -15,17 +15,20 @@ pub fn addNanoVGPackage(artifact: *std.build.LibExeObjStep) void {
 }
 
 pub fn build(b: *std.build.Builder) !void {
-    var artifact: *std.build.LibExeObjStep = undefined;
     const target = b.standardTargetOptions(.{});
-    if (target.cpu_arch != null and (target.cpu_arch.? == .wasm32 or target.cpu_arch.? == .wasm64)) {
-        artifact = b.addSharedLibrary("main", "examples/example_wasm.zig", .unversioned);
-        artifact.use_stage1 = true;
-    } else {
-        artifact = b.addExecutable("main", "examples/example_glfw.zig");
-    }
+    const mode = b.standardReleaseOptions();
+
+    const target_wasm = if (target.cpu_arch) |arch| arch == .wasm32 or arch == .wasm64 else false;
+    const artifact = init: {
+        if (target_wasm) {
+            break :init b.addSharedLibrary("main", "examples/example_wasm.zig", .unversioned);
+        } else {
+            break :init b.addExecutable("main", "examples/example_glfw.zig");
+        }
+    };
     artifact.setTarget(target);
-    artifact.setBuildMode(b.standardReleaseOptions());
-    if (target.cpu_arch == null or (target.cpu_arch.? != .wasm32 and target.cpu_arch.? != .wasm64)) {
+    artifact.setBuildMode(mode);
+    if (!target_wasm) {
         artifact.addIncludePath("lib/gl2/include");
         artifact.addCSourceFile("lib/gl2/src/glad.c", &.{});
         if (target.isWindows()) {
