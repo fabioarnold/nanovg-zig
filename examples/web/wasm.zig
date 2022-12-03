@@ -95,7 +95,10 @@ export fn memcpy(dst: ?[*]u8, src: ?[*]const u8, num: usize) ?[*]u8 {
 export fn memset(ptr: ?[*]u8, value: c_int, num: usize) ?[*]u8 {
     if (ptr == null)
         @panic("Invalid usage of memset!");
-    std.mem.set(u8, ptr.?[0..num], @intCast(u8, value));
+    // FIXME: the optimizer replaces this with a memset call which leads to a stack overflow.
+    // std.mem.set(u8, ptr.?[0..num], @intCast(u8, value));
+    for (ptr.?[0..num]) |*d|
+        d.* = @intCast(u8, value);
     return ptr;
 }
 
