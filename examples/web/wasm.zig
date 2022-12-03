@@ -43,7 +43,7 @@ pub var global_allocator: std.mem.Allocator = undefined;
 const malloc_alignment = 16;
 
 export fn malloc(size: usize) callconv(.C) ?*anyopaque {
-    const buffer = global_allocator.allocAdvanced(u8, malloc_alignment, size + malloc_alignment, .exact) catch {
+    const buffer = global_allocator.alignedAlloc(u8, malloc_alignment, size + malloc_alignment) catch {
         logger.err("Allocation failure for size={}", .{size});
         return null;
     };
