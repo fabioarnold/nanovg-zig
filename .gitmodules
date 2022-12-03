@@ -1,0 +1,3 @@
+[submodule "examples/rive-cpp"]
+	path = examples/rive-cpp
+	url = https://github.com/fabioarnold/rive-cpp

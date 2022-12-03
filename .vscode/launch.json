@@ -8,7 +8,7 @@
 			"name": "(lldb) Launch",
 			"type": "lldb",
 			"request": "launch",
-			"program": "${workspaceFolder}/zig-out/bin/demo_clip",
+			"program": "${workspaceFolder}/zig-out/bin/demo_rive",
 			"args": [],
 			"cwd": "${workspaceFolder}",
 			"preLaunchTask": "build"
