@@ -569,7 +569,11 @@ fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32,
 
     switch (tex_type) {
         .none => {},
-        .alpha => gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_LUMINANCE, w, h, 0, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data),
+        .alpha => {
+            gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1);
+            gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_LUMINANCE, w, h, 0, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data);
+            gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 4);
+        },
         .rgba => gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, w, h, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data),
     }
 
@@ -620,7 +624,11 @@ fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: i32, y: i32, w_arg: 
     gl.glBindTexture(gl.GL_TEXTURE_2D, tex.tex);
     switch (tex.tex_type) {
         .none => {},
-        .alpha => gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, y, w, h, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data),
+        .alpha => {
+            gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1);
+            gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, y, w, h, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data);
+            gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 4);
+        },
         .rgba => gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, y, w, h, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data),
     }
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0);
