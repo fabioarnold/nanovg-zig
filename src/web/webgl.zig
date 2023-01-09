@@ -130,6 +130,7 @@ pub const GL_FRAGMENT_SHADER = 0x8B30;
 pub const GL_VERTEX_SHADER = 0x8B31;
 pub const GL_COMPILE_STATUS = 0x8B81;
 pub const GL_LINK_STATUS = 0x8B82;
+pub const GL_UNPACK_ALIGNMENT = 0x0CF5;
 
 //
 // Miscellaneous
@@ -143,6 +144,7 @@ pub extern fn glFrontFace(mode: GLenum) void;
 pub extern fn glEnable(cap: GLenum) void;
 pub extern fn glDisable(cap: GLenum) void;
 pub extern fn glGetError() GLenum;
+pub extern fn glPixelStorei(pname: GLenum, param: GLint) void;
 pub extern fn glReadPixels(x: GLint, y: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, data: ?*anyopaque) void;
 
 //
