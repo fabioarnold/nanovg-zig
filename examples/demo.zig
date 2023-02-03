@@ -35,7 +35,7 @@ const ICON_TRASH = 0xE729;
 fn cpToUTF8(cp: u21, buf: []u8) [:0]const u8 {
     const len = std.unicode.utf8Encode(cp, buf) catch unreachable;
     buf[len] = 0;
-    return std.meta.assumeSentinel(buf[0..len], 0);
+    return @ptrCast([:0]const u8, buf[0..len]);
 }
 
 fn isBlack(col: nvg.Color) bool {
