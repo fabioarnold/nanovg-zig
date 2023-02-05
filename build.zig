@@ -6,15 +6,16 @@ fn getRootDir() []const u8 {
 
 const root_dir = getRootDir();
 
-pub fn addNanoVGPackage(artifact: *std.build.LibExeObjStep) void {
-    artifact.addPackagePath("nanovg", root_dir ++ "/src/nanovg.zig");
+pub fn addNanoVGModule(b: *std.Build, artifact: *std.build.CompileStep) void {
+    const module = b.createModule(.{ .source_file = .{ .path = root_dir ++ "/src/nanovg.zig" } });
+    artifact.addModule("nanovg", module);
     artifact.addIncludePath(root_dir ++ "/src");
     artifact.addCSourceFile(root_dir ++ "/src/fontstash.c", &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" });
     artifact.addCSourceFile(root_dir ++ "/src/stb_image.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
     artifact.linkLibC();
 }
 
-pub fn build(b: *std.build.Builder) !void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -59,6 +60,6 @@ pub fn build(b: *std.build.Builder) !void {
     }
     artifact.addIncludePath("examples");
     artifact.addCSourceFile("examples/stb_image_write.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
-    addNanoVGPackage(artifact);
+    addNanoVGModule(b, artifact);
     artifact.install();
 }
