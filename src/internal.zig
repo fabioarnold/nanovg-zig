@@ -94,7 +94,7 @@ pub const Context = struct {
             c.fonsDeleteInternal(ctx.fs);
         }
 
-        for (ctx.font_images) |*font_image| {
+        for (&ctx.font_images) |*font_image| {
             if (font_image.* != 0) {
                 ctx.deleteImage(font_image.*);
                 font_image.* = 0;
@@ -336,7 +336,7 @@ pub const Context = struct {
     }
 
     pub fn appendCommands(ctx: *Context, vals_src: anytype) void {
-        var vals: [vals_src.len]f32 = vals_src; 
+        var vals: [vals_src.len]f32 = vals_src;
         const state = ctx.getState();
 
         ctx.commands.ensureUnusedCapacity(vals.len) catch return;

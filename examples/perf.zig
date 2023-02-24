@@ -51,7 +51,7 @@ pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
     vg.beginPath();
     vg.moveTo(x, y + h);
     if (fps.style == .fps) {
-        for (fps.values) |_, i| {
+        for (fps.values, 0..) |_, i| {
             var v: f32 = 1.0 / (0.00001 + fps.values[(fps.head + i) % fps.values.len]);
             if (v > 80) v = 80;
             const vx = x + (@intToFloat(f32, i) / @intToFloat(f32, fps.values.len - 1)) * w;
@@ -59,7 +59,7 @@ pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
             vg.lineTo(vx, vy);
         }
     } else if (fps.style == .percent) {
-        for (fps.values) |_, i| {
+        for (fps.values, 0..) |_, i| {
             var v: f32 = fps.values[(fps.head + i) % fps.values.len];
             if (v > 100) v = 100;
             const vx = x + (@intToFloat(f32, i) / @intToFloat(f32, fps.values.len - 1)) * w;
@@ -67,7 +67,7 @@ pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
             vg.lineTo(vx, vy);
         }
     } else {
-        for (fps.values) |_, i| {
+        for (fps.values, 0..) |_, i| {
             var v: f32 = fps.values[(fps.head + i) % fps.values.len] * 1000;
             if (v > 20) v = 20;
             const vx = x + (@intToFloat(f32, i) / @intToFloat(f32, fps.values.len - 1)) * w;

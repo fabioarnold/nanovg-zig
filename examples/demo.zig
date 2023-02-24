@@ -58,7 +58,7 @@ const image_files = [_][]const u8{
 };
 
 pub fn load(demo: *Demo, vg: nvg) void {
-    for (demo.images) |*image, i| {
+    for (&demo.images, 0..) |*image, i| {
         image.* = vg.createImageMem(image_files[i], .{});
     }
 
@@ -523,7 +523,7 @@ fn drawParagraph(vg: nvg, x_arg: f32, y_arg: f32, width: f32, height: f32, mx: f
                 var caretx = if (mx < x + row.width / 2) x else x + row.width;
                 px = x;
                 const nglyphs = vg.textGlyphPositions(x, y, row.text, &glyphs);
-                for (glyphs[0..nglyphs]) |glyph, j| {
+                for (glyphs[0..nglyphs], 0..) |glyph, j| {
                     const x0 = glyph.x;
                     const x1 = if (j + 1 < nglyphs) glyphs[j + 1].x else x + row.width;
                     gx = x0 * 0.3 + x1 * 0.7;
@@ -607,7 +607,7 @@ fn drawGraph(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
 
     var sx: [6]f32 = undefined;
     var sy: [6]f32 = undefined;
-    for (samples) |sample, i| {
+    for (samples, 0..) |sample, i| {
         sx[i] = x + @intToFloat(f32, i) * dx;
         sy[i] = y + h * sample * 0.8;
     }
@@ -727,7 +727,7 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
 
     const dv = 1.0 / @intToFloat(f32, images.len - 1);
 
-    for (images) |image, i| {
+    for (images, 0..) |image, i| {
         var tx = x + 10;
         var ty = y + 10;
         tx += @intToFloat(f32, i % 2) * (thumb + 10.0);
@@ -923,8 +923,8 @@ fn drawLines(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
     vg.save();
     defer vg.restore();
 
-    for (caps) |cap, i| {
-        for (joins) |join, j| {
+    for (caps, 0..) |cap, i| {
+        for (joins, 0..) |join, j| {
             const fx = x + s * 0.5 + (@intToFloat(f32, i) * 3 + @intToFloat(f32, j)) / 9.0 * w + pad;
             const fy = y - s * 0.5 + pad;
 
@@ -992,7 +992,7 @@ fn drawCaps(vg: nvg, x: f32, y: f32, width: f32) void {
     vg.fill();
 
     vg.strokeWidth(lineWidth);
-    for (caps) |cap, i| {
+    for (caps, 0..) |cap, i| {
         vg.lineCap(cap);
         vg.strokeColor(nvg.rgba(0, 0, 0, 255));
         vg.beginPath();

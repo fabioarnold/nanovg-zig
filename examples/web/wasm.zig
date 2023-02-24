@@ -76,10 +76,10 @@ export fn memmove(dest: ?*anyopaque, src: ?*anyopaque, n: usize) ?*anyopaque {
     const temp = if (n <= buf.len) buf[0..n] else @ptrCast([*]u8, malloc(n))[0..n];
     defer if (n > buf.len) free(@ptrCast(*anyopaque, temp));
 
-    for (csrc) |c, i|
+    for (csrc, 0..) |c, i|
         temp[i] = c;
 
-    for (temp) |c, i|
+    for (temp, 0..) |c, i|
         cdest[i] = c;
 
     return dest;
