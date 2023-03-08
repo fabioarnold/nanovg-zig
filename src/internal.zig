@@ -1403,7 +1403,7 @@ pub const Context = struct {
                 const row = &rows[i];
                 const tx = switch (oldAlign.horizontal) {
                     .left => x,
-                    .center => x + break_row_width * 0.5,
+                    .center => x + break_row_width * 0.5 - row.width * 0.5,
                     .right => x + break_row_width - row.width,
                     else => x,
                 };
