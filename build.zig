@@ -56,7 +56,12 @@ pub fn build(b: *std.Build) !void {
         } else if (target.isDarwin()) {
             artifact.linkSystemLibrary("glfw3");
             artifact.linkFramework("OpenGL");
+        } else if (target.isLinux()) {
+            artifact.linkSystemLibrary("glfw3");
+            artifact.linkSystemLibrary("GL");
+            artifact.linkSystemLibrary("X11");
         } else {
+            std.log.warn("Unsupported target: {}", .{target});
             artifact.linkSystemLibrary("glfw3");
             artifact.linkSystemLibrary("GL");
         }
@@ -64,4 +69,13 @@ pub fn build(b: *std.Build) !void {
     artifact.addIncludePath("examples");
     artifact.addCSourceFile("examples/stb_image_write.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
     artifact.install();
+
+    const run_cmd = artifact.run();
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
 }
