@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) !void {
         }
     };
 
-    const module = b.createModule(.{ .source_file = .{ .path = root_dir ++ "/src/nanovg.zig" } });
+    const module = b.addModule("nanovg", .{ .source_file = .{ .path = root_dir ++ "/src/nanovg.zig" } });
     artifact.addModule("nanovg", module);
     addCSourceFiles(artifact);
 
