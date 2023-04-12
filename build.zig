@@ -68,9 +68,9 @@ pub fn build(b: *std.Build) !void {
     }
     artifact.addIncludePath("examples");
     artifact.addCSourceFile("examples/stb_image_write.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
-    artifact.install();
+    b.installArtifact(artifact);
 
-    const run_cmd = artifact.run();
+    const run_cmd = b.addRunArtifact(artifact);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
