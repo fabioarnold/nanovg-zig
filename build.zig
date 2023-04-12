@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) !void {
         }
     };
 
-    const module = b.createModule(.{ .source_file = .{ .path = root_dir ++ "/src/nanovg.zig" } });
+    const module = b.addModule("nanovg", .{ .source_file = .{ .path = root_dir ++ "/src/nanovg.zig" } });
     artifact.addModule("nanovg", module);
     addCSourceFiles(artifact);
 
@@ -68,9 +68,9 @@ pub fn build(b: *std.Build) !void {
     }
     artifact.addIncludePath("examples");
     artifact.addCSourceFile("examples/stb_image_write.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
-    artifact.install();
+    b.installArtifact(artifact);
 
-    const run_cmd = artifact.run();
+    const run_cmd = b.addRunArtifact(artifact);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
