@@ -158,3 +158,25 @@ export fn __assert_fail(a: i32, b: i32, c: i32, d: i32) void {
     _ = c;
     _ = d;
 }
+
+export fn abs(i: c_int) c_int {
+    return if (i < 0) -i else i;
+}
+
+export fn pow(x: f64, y: f64) f64 {
+    return std.math.pow(f64, x, y);
+}
+
+export fn ldexp(x: f64, n: c_int) f64 {
+    return std.math.ldexp(x, n);
+}
+
+export var __stack_chk_guard: c_ulong = undefined;
+
+export fn __stack_chk_guard_setup() void {
+    __stack_chk_guard = 0xBAAAAAAD;
+}
+
+export fn __stack_chk_fail() void {
+    @panic("stack fail");
+}

@@ -40,7 +40,9 @@ pub fn build(b: *std.Build) !void {
     artifact.addModule("nanovg", module);
     addCSourceFiles(artifact);
 
-    if (!target_wasm) {
+    if (target_wasm) {
+        artifact.rdynamic = true;
+    } else {
         artifact.addIncludePath("lib/gl2/include");
         artifact.addCSourceFile("lib/gl2/src/glad.c", &.{});
         if (target.isWindows()) {
