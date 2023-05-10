@@ -30,7 +30,7 @@
       ...webgl,
     }
 
-    fetchAndInstantiate('zig-out/lib/main.wasm', { env }).then(instance => {
+    fetchAndInstantiate('zig-out/lib/demo.wasm', { env }).then(instance => {
       memory = instance.exports.memory;
       instance.exports.onInit();
 
