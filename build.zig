@@ -17,6 +17,10 @@ pub fn build(b: *std.Build) !void {
     lib.addCSourceFile("src/fontstash.c", &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" });
     lib.addCSourceFile("src/stb_image.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
     lib.linkLibC();
+    lib.installHeader("src/fontstash.h", "fontstash.h");
+    lib.installHeader("src/stb_image.h", "stb_image.h");
+    lib.installHeader("src/stb_truetype.h", "stb_truetype.h");
+    b.installArtifact(lib);
 
     const target_wasm = if (target.cpu_arch) |arch| arch.isWasm() else false;
     const demo = init: {
@@ -38,7 +42,6 @@ pub fn build(b: *std.Build) !void {
     };
     demo.addModule("nanovg", nanovg);
     demo.linkLibrary(lib);
-    b.installArtifact(lib);
 
     if (target_wasm) {
         demo.rdynamic = true;
