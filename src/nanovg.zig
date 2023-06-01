@@ -193,6 +193,33 @@ pub fn endFrame(self: Self) void {
 }
 
 //
+// Composite operation
+//
+// The composite operations in NanoVG are modeled after HTML Canvas API, and
+// the blend func is based on OpenGL (see corresponding manuals for more info).
+// The colors in the blending state have premultiplied alpha.
+
+// Sets the composite operation. The op parameter should be one of NVGcompositeOperation.
+pub fn globalCompositeOperation(self: Self, op: CompositeOperation) void {
+    self.ctx.getState().composite_operation = CompositeOperationState.initOperation(op);
+}
+
+// Sets the composite operation with custom pixel arithmetic. The parameters should be one of NVGblendFactor.
+pub fn globalCompositeBlendFunc(self: Self, sfactor: BlendFactor, dfactor: BlendFactor) void {
+    self.globalCompositeBlendFuncSeparate(sfactor, dfactor, sfactor, dfactor, sfactor);
+}
+
+// Sets the composite operation with custom pixel arithmetic for RGB and alpha components separately. The parameters should be one of NVGblendFactor.
+pub fn globalCompositeBlendFuncSeparate(self: Self, srcRGB: BlendFactor, dstRGB: BlendFactor, srcAlpha: BlendFactor, dstAlpha: BlendFactor) void {
+    self.ctx.getState().compositeOperation = .{
+        .src_rgb = srcRGB,
+        .dst_rgb = dstRGB,
+        .src_alpha = srcAlpha,
+        .dst_alpha = dstAlpha,
+    };
+}
+
+//
 // Color utils
 //
 // Colors in NanoVG are stored as unsigned ints in ABGR format.
