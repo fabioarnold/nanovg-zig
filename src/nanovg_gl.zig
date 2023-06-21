@@ -487,7 +487,7 @@ const FragUniforms = struct {
             } else {
                 _ = nvg.transformInverse(&invxform, &paint.xform);
             }
-            frag.shaderType = @intToFloat(f32, @enumToInt(ShaderType.fill_image));
+            frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.fill_image));
 
             if (tex.tex_type == .rgba) {
                 frag.tex_type = if (tex.flags.premultiplied) 0 else 1;
@@ -497,7 +497,7 @@ const FragUniforms = struct {
                 frag.tex_type = 3;
             }
         } else {
-            frag.shaderType = @intToFloat(f32, @enumToInt(ShaderType.fill_gradient));
+            frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.fill_gradient));
             frag.radius = paint.radius;
             frag.feather = paint.feather;
             _ = nvg.transformInverse(&invxform, &paint.xform);
@@ -684,7 +684,7 @@ fn renderFlush(uptr: *anyopaque) void {
         gl.glEnableVertexAttribArray(0);
         gl.glEnableVertexAttribArray(1);
         gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(internal.Vertex), null);
-        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(internal.Vertex), @intToPtr(*anyopaque, 2 * @sizeOf(f32)));
+        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(internal.Vertex), @ptrFromInt(*anyopaque, 2 * @sizeOf(f32)));
 
         // Set view and texture just once per frame.
         gl.glUniform1i(ctx.shader.tex_loc, 0);
@@ -770,7 +770,7 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
         const frag = ctx.uniforms.addOneAssumeCapacity();
         frag.* = std.mem.zeroes(FragUniforms);
         frag.stroke_thr = -1.0;
-        frag.shaderType = @intToFloat(f32, @enumToInt(ShaderType.simple));
+        frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.simple));
         // Fill shader
         _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1.0, ctx);
     } else {
@@ -841,7 +841,7 @@ fn renderTriangles(uptr: *anyopaque, paint: *nvg.Paint, comp_op: nvg.CompositeOp
     call.uniform_offset = @intCast(u32, ctx.uniforms.items.len);
     const frag = ctx.uniforms.addOne() catch return;
     _ = frag.fromPaint(paint, scissor, 1, fringe, -1, ctx);
-    frag.shaderType = @intToFloat(f32, @enumToInt(ShaderType.image));
+    frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.image));
 }
 
 fn renderDelete(uptr: *anyopaque) void {

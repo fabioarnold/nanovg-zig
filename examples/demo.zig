@@ -608,7 +608,7 @@ fn drawGraph(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
     var sx: [6]f32 = undefined;
     var sy: [6]f32 = undefined;
     for (samples, 0..) |sample, i| {
-        sx[i] = x + @intToFloat(f32, i) * dx;
+        sx[i] = x + @floatFromInt(f32, i) * dx;
         sy[i] = y + h * sample * 0.8;
     }
 
@@ -697,7 +697,7 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
     const cornerRadius = 3.0;
     const thumb = 60.0;
     const arry = 30.5;
-    const stackh = @intToFloat(f32, images.len / 2) * (thumb + 10.0) + 10.0;
+    const stackh = @floatFromInt(f32, images.len / 2) * (thumb + 10.0) + 10.0;
     const u = (1 + @cos(t * 0.5)) * 0.5;
     const uu = (1 - @cos(t * 0.2)) * 0.5;
 
@@ -725,13 +725,13 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
     vg.scissor(x, y, w, h);
     vg.translate(0, -(stackh - h) * u);
 
-    const dv = 1.0 / @intToFloat(f32, images.len - 1);
+    const dv = 1.0 / @floatFromInt(f32, images.len - 1);
 
     for (images, 0..) |image, i| {
         var tx = x + 10;
         var ty = y + 10;
-        tx += @intToFloat(f32, i % 2) * (thumb + 10.0);
-        ty += @intToFloat(f32, i / 2) * (thumb + 10.0);
+        tx += @floatFromInt(f32, i % 2) * (thumb + 10.0);
+        ty += @floatFromInt(f32, i / 2) * (thumb + 10.0);
         var imgw: i32 = undefined;
         var imgh: i32 = undefined;
         vg.imageSize(image, &imgw, &imgh);
@@ -741,17 +741,17 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
         var ih: f32 = undefined;
         if (imgw < imgh) {
             iw = thumb;
-            ih = iw * @intToFloat(f32, imgh) / @intToFloat(f32, imgw);
+            ih = iw * @floatFromInt(f32, imgh) / @floatFromInt(f32, imgw);
             ix = 0;
             iy = -(ih - thumb) * 0.5;
         } else {
             ih = thumb;
-            iw = ih * @intToFloat(f32, imgw) / @intToFloat(f32, imgh);
+            iw = ih * @floatFromInt(f32, imgw) / @floatFromInt(f32, imgh);
             ix = -(iw - thumb) * 0.5;
             iy = 0;
         }
 
-        const v = @intToFloat(f32, i) * dv;
+        const v = @floatFromInt(f32, i) * dv;
         const a = std.math.clamp((uu - v) / dv, 0, 1);
 
         if (a < 1.0) {
@@ -925,7 +925,7 @@ fn drawLines(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
 
     for (caps, 0..) |cap, i| {
         for (joins, 0..) |join, j| {
-            const fx = x + s * 0.5 + (@intToFloat(f32, i) * 3 + @intToFloat(f32, j)) / 9.0 * w + pad;
+            const fx = x + s * 0.5 + (@floatFromInt(f32, i) * 3 + @floatFromInt(f32, j)) / 9.0 * w + pad;
             const fy = y - s * 0.5 + pad;
 
             vg.lineCap(cap);
@@ -964,7 +964,7 @@ fn drawWidths(vg: nvg, x: f32, y0: f32, width: f32) void {
     var y = y0;
     var i: usize = 0;
     while (i < 20) : (i += 1) {
-        const w = (@intToFloat(f32, i) + 0.5) * 0.1;
+        const w = (@floatFromInt(f32, i) + 0.5) * 0.1;
         vg.strokeWidth(w);
         vg.beginPath();
         vg.moveTo(x, y);
@@ -996,8 +996,8 @@ fn drawCaps(vg: nvg, x: f32, y: f32, width: f32) void {
         vg.lineCap(cap);
         vg.strokeColor(nvg.rgba(0, 0, 0, 255));
         vg.beginPath();
-        vg.moveTo(x, y + @intToFloat(f32, i) * 10 + 5);
-        vg.lineTo(x + width, y + @intToFloat(f32, i) * 10 + 5);
+        vg.moveTo(x, y + @floatFromInt(f32, i) * 10 + 5);
+        vg.lineTo(x + width, y + @floatFromInt(f32, i) * 10 + 5);
         vg.stroke();
     }
 }

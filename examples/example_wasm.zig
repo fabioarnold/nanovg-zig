@@ -43,7 +43,7 @@ export fn onInit() void {
         .backing_allocator = global_arena.allocator(),
     };
     allocator = gpa.allocator();
-    
+
     wasm.global_allocator = allocator;
 
     vg = nvg.gl.init(allocator, .{}) catch {
@@ -58,10 +58,10 @@ export fn onInit() void {
 }
 
 export fn onResize(w: c_uint, h: c_uint, s: f32) void {
-    video_width = @intToFloat(f32, w);
-    video_height = @intToFloat(f32, h);
+    video_width = @floatFromInt(f32, w);
+    video_height = @floatFromInt(f32, h);
     video_scale = s;
-    gl.glViewport(0, 0, @floatToInt(i32, s * video_width), @floatToInt(i32, s * video_height));
+    gl.glViewport(0, 0, @intFromFloat(i32, s * video_width), @intFromFloat(i32, s * video_height));
 }
 
 export fn onKeyDown(key: c_uint) void {
@@ -71,8 +71,8 @@ export fn onKeyDown(key: c_uint) void {
 }
 
 export fn onMouseMove(x: i32, y: i32) void {
-    mx = @intToFloat(f32, x);
-    my = @intToFloat(f32, y);
+    mx = @floatFromInt(f32, x);
+    my = @floatFromInt(f32, y);
 }
 
 export fn onAnimationFrame() void {
@@ -97,8 +97,8 @@ export fn onAnimationFrame() void {
 
     if (screenshot) {
         screenshot = false;
-        const w = @floatToInt(i32, video_width * video_scale);
-        const h = @floatToInt(i32, video_height * video_scale);
+        const w = @intFromFloat(i32, video_width * video_scale);
+        const h = @intFromFloat(i32, video_height * video_scale);
         const data = Demo.saveScreenshot(allocator, w, h, premult) catch return;
         defer allocator.free(data);
         const filename = "dump.png";

@@ -47,7 +47,7 @@ pub fn main() !void {
     if (!builtin.target.isDarwin()) {
         c.glfwGetMonitorContentScale(monitor, &scale, null);
     }
-    window = c.glfwCreateWindow(@floatToInt(i32, scale * 1000), @floatToInt(i32, scale * 600), "NanoVG", null, null);
+    window = c.glfwCreateWindow(@intFromFloat(i32, scale * 1000), @intFromFloat(i32, scale * 600), "NanoVG", null, null);
     if (window == null) {
         return error.GLFWInitFailed;
     }
@@ -92,14 +92,14 @@ pub fn main() !void {
         var win_width: i32 = undefined;
         var win_height: i32 = undefined;
         c.glfwGetWindowSize(window, &win_width, &win_height);
-        win_width = @floatToInt(i32, @intToFloat(f32, win_width) / scale);
-        win_height = @floatToInt(i32, @intToFloat(f32, win_height) / scale);
+        win_width = @intFromFloat(i32, @floatFromInt(f32, win_width) / scale);
+        win_height = @intFromFloat(i32, @floatFromInt(f32, win_height) / scale);
         var fb_width: i32 = undefined;
         var fb_height: i32 = undefined;
         c.glfwGetFramebufferSize(window, &fb_width, &fb_height);
 
         // Calculate pixel ratio for hi-dpi devices.
-        const pxRatio = @intToFloat(f32, fb_width) / @intToFloat(f32, win_width);
+        const pxRatio = @floatFromInt(f32, fb_width) / @floatFromInt(f32, win_width);
 
         // Update and render
         c.glViewport(0, 0, fb_width, fb_height);
@@ -110,9 +110,9 @@ pub fn main() !void {
         }
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
-        vg.beginFrame(@intToFloat(f32, win_width), @intToFloat(f32, win_height), pxRatio);
+        vg.beginFrame(@floatFromInt(f32, win_width), @floatFromInt(f32, win_height), pxRatio);
 
-        demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @intToFloat(f32, win_width), @intToFloat(f32, win_height), @floatCast(f32, t), blowup);
+        demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @floatFromInt(f32, win_width), @floatFromInt(f32, win_height), @floatCast(f32, t), blowup);
         fps.draw(vg, 5, 5);
 
         vg.endFrame();

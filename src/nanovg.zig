@@ -75,7 +75,7 @@ pub const TextAlign = struct {
     vertical: VerticalAlign = .baseline,
 
     pub fn toInt(text_align: TextAlign) u8 {
-        return @enumToInt(text_align.horizontal) | @enumToInt(text_align.vertical);
+        return @intFromEnum(text_align.horizontal) | @intFromEnum(text_align.vertical);
     }
 };
 
@@ -227,9 +227,9 @@ pub fn globalCompositeBlendFuncSeparate(self: Self, srcRGB: BlendFactor, dstRGB:
 // Returns a color value from red, green, blue values. Alpha will be set to 255 (1.0f).
 pub fn rgb(r: u8, g: u8, b: u8) Color {
     return rgbf(
-        @intToFloat(f32, r) / 255.0,
-        @intToFloat(f32, g) / 255.0,
-        @intToFloat(f32, b) / 255.0,
+        @floatFromInt(f32, r) / 255.0,
+        @floatFromInt(f32, g) / 255.0,
+        @floatFromInt(f32, b) / 255.0,
     );
 }
 
@@ -241,10 +241,10 @@ pub fn rgbf(r: f32, g: f32, b: f32) Color {
 // Returns a color value from red, green, blue and alpha values.
 pub fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
     return rgbaf(
-        @intToFloat(f32, r) / 255.0,
-        @intToFloat(f32, g) / 255.0,
-        @intToFloat(f32, b) / 255.0,
-        @intToFloat(f32, a) / 255.0,
+        @floatFromInt(f32, r) / 255.0,
+        @floatFromInt(f32, g) / 255.0,
+        @floatFromInt(f32, b) / 255.0,
+        @floatFromInt(f32, a) / 255.0,
     );
 }
 
@@ -268,7 +268,7 @@ pub fn lerpRGBA(c0: Color, c1: Color, u: f32) Color {
 // // Sets transparency of a color value.
 // NVGcolor nvgTransRGBA(NVGcolor c0, unsigned char a);
 pub fn transRGBA(c0: Color, a: u8) Color {
-    return transRGBAf(c0, @intToFloat(f32, a) / 255.0);
+    return transRGBAf(c0, @floatFromInt(f32, a) / 255.0);
 }
 
 // // Sets transparency of a color value.
@@ -302,7 +302,7 @@ pub fn hsla(hue: f32, sat: f32, lig: f32, a: u8) Color {
         .r = std.math.clamp(getHue(h + 1.0 / 3.0, m1, m2), 0, 1),
         .g = std.math.clamp(getHue(h, m1, m2), 0, 1),
         .b = std.math.clamp(getHue(h - 1.0 / 3.0, m1, m2), 0, 1),
-        .a = @intToFloat(f32, a) / 255.0,
+        .a = @floatFromInt(f32, a) / 255.0,
     };
 }
 fn getHue(hue: f32, m1: f32, m2: f32) f32 {
