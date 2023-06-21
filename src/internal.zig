@@ -480,10 +480,10 @@ pub const Context = struct {
                 p0.dy = p1.y - p0.y;
                 p0.len = normalize(&p0.dx, &p0.dy);
                 // Update bounds
-                cache.bounds[0] = std.math.min(cache.bounds[0], p0.x);
-                cache.bounds[1] = std.math.min(cache.bounds[1], p0.y);
-                cache.bounds[2] = std.math.max(cache.bounds[2], p0.x);
-                cache.bounds[3] = std.math.max(cache.bounds[3], p0.y);
+                cache.bounds[0] = @min(cache.bounds[0], p0.x);
+                cache.bounds[1] = @min(cache.bounds[1], p0.y);
+                cache.bounds[2] = @max(cache.bounds[2], p0.x);
+                cache.bounds[3] = @max(cache.bounds[3], p0.y);
             }
         }
     }
@@ -529,7 +529,7 @@ pub const Context = struct {
                 }
 
                 // Calculate if we should use bevel or miter for inner join.
-                const limit = std.math.max(1.01, std.math.min(p0.len, p1.len) * iw);
+                const limit = @max(1.01, @min(p0.len, p1.len) * iw);
                 if ((dmr2 * limit * limit) < 1.0)
                     p1.flags.innerbevel = true;
 
@@ -925,14 +925,14 @@ pub const Context = struct {
         } else {
             const halfw = @fabs(w) * 0.5;
             const halfh = @fabs(h) * 0.5;
-            const rxBL = std.math.min(radBottomLeft, halfw) * sign(w);
-            const ryBL = std.math.min(radBottomLeft, halfh) * sign(h);
-            const rxBR = std.math.min(radBottomRight, halfw) * sign(w);
-            const ryBR = std.math.min(radBottomRight, halfh) * sign(h);
-            const rxTR = std.math.min(radTopRight, halfw) * sign(w);
-            const ryTR = std.math.min(radTopRight, halfh) * sign(h);
-            const rxTL = std.math.min(radTopLeft, halfw) * sign(w);
-            const ryTL = std.math.min(radTopLeft, halfh) * sign(h);
+            const rxBL = @min(radBottomLeft, halfw) * sign(w);
+            const ryBL = @min(radBottomLeft, halfh) * sign(h);
+            const rxBR = @min(radBottomRight, halfw) * sign(w);
+            const ryBR = @min(radBottomRight, halfh) * sign(h);
+            const rxTR = @min(radTopRight, halfw) * sign(w);
+            const ryTR = @min(radTopRight, halfh) * sign(h);
+            const rxTL = @min(radTopLeft, halfw) * sign(w);
+            const ryTL = @min(radTopLeft, halfh) * sign(h);
             // zig fmt: off
             ctx.appendCommands(.{
                 Command.move_to.toValue(), x, y + ryTL,
@@ -1004,7 +1004,7 @@ pub const Context = struct {
 
         p.radius = 0;
 
-        p.feather = std.math.max(1, d);
+        p.feather = @max(1, d);
 
         p.inner_color = icol;
         p.outer_color = ocol;
@@ -1027,7 +1027,7 @@ pub const Context = struct {
 
         p.radius = r;
 
-        p.feather = std.math.max(1, f);
+        p.feather = @max(1, f);
 
         p.inner_color = icol;
         p.outer_color = ocol;
@@ -1048,7 +1048,7 @@ pub const Context = struct {
 
         p.radius = r;
 
-        p.feather = std.math.max(1, f);
+        p.feather = @max(1, f);
 
         p.inner_color = icol;
         p.outer_color = ocol;
@@ -1108,14 +1108,14 @@ pub const Context = struct {
     }
 
     fn isectRects(dst: *[4]f32, ax: f32, ay: f32, aw: f32, ah: f32, bx: f32, by: f32, bw: f32, bh: f32) void {
-        const minx = std.math.max(ax, bx);
-        const miny = std.math.max(ay, by);
-        const maxx = std.math.min(ax + aw, bx + bw);
-        const maxy = std.math.min(ay + ah, by + bh);
+        const minx = @max(ax, bx);
+        const miny = @max(ay, by);
+        const maxx = @min(ax + aw, bx + bw);
+        const maxy = @min(ay + ah, by + bh);
         dst[0] = minx;
         dst[1] = miny;
-        dst[2] = std.math.max(0, maxx - minx);
-        dst[3] = std.math.max(0, maxy - miny);
+        dst[2] = @max(0, maxx - minx);
+        dst[3] = @max(0, maxy - miny);
     }
 
     pub fn intersectScissor(ctx: *Context, x: f32, y: f32, w: f32, h: f32) void {
@@ -1329,7 +1329,7 @@ pub const Context = struct {
         c.fonsSetAlign(ctx.fs, state.text_align.toInt());
         c.fonsSetFont(ctx.fs, state.font_id);
 
-        const cverts = @intCast(u32, std.math.max(2, string.len) * 6); // conservative estimate.
+        const cverts = @intCast(u32, @max(2, string.len) * 6); // conservative estimate.
         var verts = ctx.cache.allocTempVerts(cverts) catch return x;
         var nverts: u32 = 0;
 
@@ -1443,8 +1443,8 @@ pub const Context = struct {
             prev_iter = iter;
             positions[npos].str = iter.str;
             positions[npos].x = iter.x * invs;
-            positions[npos].minx = std.math.min(iter.x, q.x0) * invs;
-            positions[npos].maxx = std.math.max(iter.nextx, q.x1) * invs;
+            positions[npos].minx = @min(iter.x, q.x0) * invs;
+            positions[npos].maxx = @max(iter.nextx, q.x1) * invs;
             npos += 1;
             if (npos >= positions.len)
                 break;
@@ -1736,11 +1736,11 @@ pub const Context = struct {
                 };
                 const rminx = x + row.minx + dx;
                 const rmaxx = x + row.maxx + dx;
-                minx = std.math.min(minx, rminx);
-                maxx = std.math.max(maxx, rmaxx);
+                minx = @min(minx, rminx);
+                maxx = @max(maxx, rmaxx);
                 // Vertical bounds.
-                miny = std.math.min(miny, y + rminy);
-                maxy = std.math.max(maxy, y + rmaxy);
+                miny = @min(miny, y + rminy);
+                maxy = @max(maxy, y + rmaxy);
 
                 y += lineh * state.line_height;
             }
@@ -1876,7 +1876,7 @@ const State = struct {
     font_id: i32,
 
     fn getFontScale(state: State) f32 {
-        return std.math.min(quantize(getAverageScale(state.xform), 0.01), 4.0);
+        return @min(quantize(getAverageScale(state.xform), 0.01), 4.0);
     }
 };
 
@@ -2077,7 +2077,7 @@ fn polyReverse(pts: []Point) void {
 
 fn curveDivs(r: f32, arc: f32, tol: f32) u32 {
     const da = std.math.acos(r / (r + tol)) * 2;
-    return std.math.max(2, @floatToInt(u32, @ceil(arc / da)));
+    return @max(2, @floatToInt(u32, @ceil(arc / da)));
 }
 
 fn chooseBevel(bevel: bool, p0: Point, p1: Point, w: f32, x0: *f32, y0: *f32, x1: *f32, y1: *f32) void {
