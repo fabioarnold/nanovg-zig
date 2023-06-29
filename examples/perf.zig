@@ -33,7 +33,7 @@ fn getAverage(fps: *PerfGraph) f32 {
     for (fps.values) |value| {
         avg += value;
     }
-    return avg / @floatFromInt(f32, fps.values.len);
+    return avg / @as(f32, @floatFromInt(fps.values.len));
 }
 
 pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
@@ -54,7 +54,7 @@ pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
         for (fps.values, 0..) |_, i| {
             var v: f32 = 1.0 / (0.00001 + fps.values[(fps.head + i) % fps.values.len]);
             if (v > 80) v = 80;
-            const vx = x + (@floatFromInt(f32, i) / @floatFromInt(f32, fps.values.len - 1)) * w;
+            const vx = x + (@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(fps.values.len - 1))) * w;
             const vy = y + h - ((v / 80) * h);
             vg.lineTo(vx, vy);
         }
@@ -62,7 +62,7 @@ pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
         for (fps.values, 0..) |_, i| {
             var v: f32 = fps.values[(fps.head + i) % fps.values.len];
             if (v > 100) v = 100;
-            const vx = x + (@floatFromInt(f32, i) / @floatFromInt(f32, fps.values.len - 1)) * w;
+            const vx = x + (@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(fps.values.len - 1))) * w;
             const vy = y + h - ((v / 100) * h);
             vg.lineTo(vx, vy);
         }
@@ -70,7 +70,7 @@ pub fn draw(fps: *PerfGraph, vg: nvg, x: f32, y: f32) void {
         for (fps.values, 0..) |_, i| {
             var v: f32 = fps.values[(fps.head + i) % fps.values.len] * 1000;
             if (v > 20) v = 20;
-            const vx = x + (@floatFromInt(f32, i) / @floatFromInt(f32, fps.values.len - 1)) * w;
+            const vx = x + (@as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(fps.values.len - 1))) * w;
             const vy = y + h - ((v / 20) * h);
             vg.lineTo(vx, vy);
         }

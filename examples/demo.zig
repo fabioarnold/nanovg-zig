@@ -35,7 +35,7 @@ const ICON_TRASH = 0xE729;
 fn cpToUTF8(cp: u21, buf: []u8) [:0]const u8 {
     const len = std.unicode.utf8Encode(cp, buf) catch unreachable;
     buf[len] = 0;
-    return @ptrCast([:0]const u8, buf[0..len]);
+    return @ptrCast(buf[0..len]);
 }
 
 fn isBlack(col: nvg.Color) bool {
@@ -608,7 +608,7 @@ fn drawGraph(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
     var sx: [6]f32 = undefined;
     var sy: [6]f32 = undefined;
     for (samples, 0..) |sample, i| {
-        sx[i] = x + @floatFromInt(f32, i) * dx;
+        sx[i] = x + @as(f32, @floatFromInt(i)) * dx;
         sy[i] = y + h * sample * 0.8;
     }
 
@@ -697,7 +697,7 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
     const cornerRadius = 3.0;
     const thumb = 60.0;
     const arry = 30.5;
-    const stackh = @floatFromInt(f32, images.len / 2) * (thumb + 10.0) + 10.0;
+    const stackh = @as(f32, @floatFromInt(images.len / 2)) * (thumb + 10.0) + 10.0;
     const u = (1 + @cos(t * 0.5)) * 0.5;
     const uu = (1 - @cos(t * 0.2)) * 0.5;
 
@@ -725,13 +725,13 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
     vg.scissor(x, y, w, h);
     vg.translate(0, -(stackh - h) * u);
 
-    const dv = 1.0 / @floatFromInt(f32, images.len - 1);
+    const dv = 1.0 / @as(f32, @floatFromInt(images.len - 1));
 
     for (images, 0..) |image, i| {
         var tx = x + 10;
         var ty = y + 10;
-        tx += @floatFromInt(f32, i % 2) * (thumb + 10.0);
-        ty += @floatFromInt(f32, i / 2) * (thumb + 10.0);
+        tx += @as(f32, @floatFromInt(i % 2)) * (thumb + 10.0);
+        ty += @as(f32, @floatFromInt(i / 2)) * (thumb + 10.0);
         var imgw: i32 = undefined;
         var imgh: i32 = undefined;
         vg.imageSize(image, &imgw, &imgh);
@@ -741,17 +741,17 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
         var ih: f32 = undefined;
         if (imgw < imgh) {
             iw = thumb;
-            ih = iw * @floatFromInt(f32, imgh) / @floatFromInt(f32, imgw);
+            ih = iw * @as(f32, @floatFromInt(imgh)) / @as(f32, @floatFromInt(imgw));
             ix = 0;
             iy = -(ih - thumb) * 0.5;
         } else {
             ih = thumb;
-            iw = ih * @floatFromInt(f32, imgw) / @floatFromInt(f32, imgh);
+            iw = ih * @as(f32, @floatFromInt(imgw)) / @as(f32, @floatFromInt(imgh));
             ix = -(iw - thumb) * 0.5;
             iy = 0;
         }
 
-        const v = @floatFromInt(f32, i) * dv;
+        const v = @as(f32, @floatFromInt(i)) * dv;
         const a = std.math.clamp((uu - v) / dv, 0, 1);
 
         if (a < 1.0) {
@@ -925,7 +925,7 @@ fn drawLines(vg: nvg, x: f32, y: f32, w: f32, h: f32, t: f32) void {
 
     for (caps, 0..) |cap, i| {
         for (joins, 0..) |join, j| {
-            const fx = x + s * 0.5 + (@floatFromInt(f32, i) * 3 + @floatFromInt(f32, j)) / 9.0 * w + pad;
+            const fx = x + s * 0.5 + (@as(f32, @floatFromInt(i)) * 3 + @as(f32, @floatFromInt(j))) / 9.0 * w + pad;
             const fy = y - s * 0.5 + pad;
 
             vg.lineCap(cap);
@@ -964,7 +964,7 @@ fn drawWidths(vg: nvg, x: f32, y0: f32, width: f32) void {
     var y = y0;
     var i: usize = 0;
     while (i < 20) : (i += 1) {
-        const w = (@floatFromInt(f32, i) + 0.5) * 0.1;
+        const w = (@as(f32, @floatFromInt(i)) + 0.5) * 0.1;
         vg.strokeWidth(w);
         vg.beginPath();
         vg.moveTo(x, y);
@@ -996,8 +996,8 @@ fn drawCaps(vg: nvg, x: f32, y: f32, width: f32) void {
         vg.lineCap(cap);
         vg.strokeColor(nvg.rgba(0, 0, 0, 255));
         vg.beginPath();
-        vg.moveTo(x, y + @floatFromInt(f32, i) * 10 + 5);
-        vg.lineTo(x + width, y + @floatFromInt(f32, i) * 10 + 5);
+        vg.moveTo(x, y + @as(f32, @floatFromInt(i)) * 10 + 5);
+        vg.lineTo(x + width, y + @as(f32, @floatFromInt(i)) * 10 + 5);
         vg.stroke();
     }
 }
@@ -1048,23 +1048,23 @@ fn unpremultiplyAlpha(image: []u8, w: usize, h: usize, stride: usize) void {
             const b = @as(u32, row[2]);
             const a = @as(u32, row[3]);
             if (a != 0) {
-                row[0] = @truncate(u8, @min(r * 255 / a, 255));
-                row[1] = @truncate(u8, @min(g * 255 / a, 255));
-                row[2] = @truncate(u8, @min(b * 255 / a, 255));
+                row[0] = @truncate(@min(r * 255 / a, 255));
+                row[1] = @truncate(@min(g * 255 / a, 255));
+                row[2] = @truncate(@min(b * 255 / a, 255));
             }
         }
     }
 }
 
 fn stbiWriteFunc(context: ?*anyopaque, data: ?*anyopaque, size: c_int) callconv(.C) void {
-    const buffer = @ptrCast(*ArrayList(u8), @alignCast(@alignOf(*ArrayList(u8)), context.?));
-    const slice = @ptrCast([*]const u8, data.?)[0..@intCast(usize, size)];
+    const buffer: *ArrayList(u8) = @alignCast(@ptrCast(context.?));
+    const slice = @as([*]const u8, @ptrCast(data.?))[0..@intCast(size)];
     buffer.appendSlice(slice) catch return;
 }
 
 pub fn saveScreenshot(allocator: Allocator, w: i32, h: i32, premult: bool) ![]const u8 {
-    const uw = @intCast(usize, w);
-    const uh = @intCast(usize, h);
+    const uw: usize = @intCast(w);
+    const uh: usize = @intCast(h);
     const stride = uw * 4;
     const image = try allocator.alloc(u8, uw * uh * 4);
     gl.glReadPixels(0, 0, w, h, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, image.ptr);

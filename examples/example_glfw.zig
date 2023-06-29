@@ -47,7 +47,7 @@ pub fn main() !void {
     if (!builtin.target.isDarwin()) {
         c.glfwGetMonitorContentScale(monitor, &scale, null);
     }
-    window = c.glfwCreateWindow(@intFromFloat(i32, scale * 1000), @intFromFloat(i32, scale * 600), "NanoVG", null, null);
+    window = c.glfwCreateWindow(@as(i32, @intFromFloat(scale * 1000)), @as(i32, @intFromFloat(scale * 600)), "NanoVG", null, null);
     if (window == null) {
         return error.GLFWInitFailed;
     }
@@ -82,7 +82,7 @@ pub fn main() !void {
         const t = c.glfwGetTime();
         const dt = t - prevt;
         prevt = t;
-        fps.update(@floatCast(f32, dt));
+        fps.update(@floatCast(dt));
 
         var mx: f64 = undefined;
         var my: f64 = undefined;
@@ -92,14 +92,14 @@ pub fn main() !void {
         var win_width: i32 = undefined;
         var win_height: i32 = undefined;
         c.glfwGetWindowSize(window, &win_width, &win_height);
-        win_width = @intFromFloat(i32, @floatFromInt(f32, win_width) / scale);
-        win_height = @intFromFloat(i32, @floatFromInt(f32, win_height) / scale);
+        win_width = @intFromFloat(@as(f32, @floatFromInt(win_width)) / scale);
+        win_height = @intFromFloat(@as(f32, @floatFromInt(win_height)) / scale);
         var fb_width: i32 = undefined;
         var fb_height: i32 = undefined;
         c.glfwGetFramebufferSize(window, &fb_width, &fb_height);
 
         // Calculate pixel ratio for hi-dpi devices.
-        const pxRatio = @floatFromInt(f32, fb_width) / @floatFromInt(f32, win_width);
+        const pxRatio = @as(f32, @floatFromInt(fb_width)) / @as(f32, @floatFromInt(win_width));
 
         // Update and render
         c.glViewport(0, 0, fb_width, fb_height);
@@ -110,9 +110,9 @@ pub fn main() !void {
         }
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
-        vg.beginFrame(@floatFromInt(f32, win_width), @floatFromInt(f32, win_height), pxRatio);
+        vg.beginFrame(@floatFromInt(win_width), @floatFromInt(win_height), pxRatio);
 
-        demo.draw(vg, @floatCast(f32, mx), @floatCast(f32, my), @floatFromInt(f32, win_width), @floatFromInt(f32, win_height), @floatCast(f32, t), blowup);
+        demo.draw(vg, @floatCast(mx), @floatCast(my), @floatFromInt(win_width), @floatFromInt(win_height), @floatCast(t), blowup);
         fps.draw(vg, 5, 5);
 
         vg.endFrame();

@@ -227,9 +227,9 @@ pub fn globalCompositeBlendFuncSeparate(self: Self, srcRGB: BlendFactor, dstRGB:
 // Returns a color value from red, green, blue values. Alpha will be set to 255 (1.0f).
 pub fn rgb(r: u8, g: u8, b: u8) Color {
     return rgbf(
-        @floatFromInt(f32, r) / 255.0,
-        @floatFromInt(f32, g) / 255.0,
-        @floatFromInt(f32, b) / 255.0,
+        @as(f32, @floatFromInt(r)) / 255.0,
+        @as(f32, @floatFromInt(g)) / 255.0,
+        @as(f32, @floatFromInt(b)) / 255.0,
     );
 }
 
@@ -241,10 +241,10 @@ pub fn rgbf(r: f32, g: f32, b: f32) Color {
 // Returns a color value from red, green, blue and alpha values.
 pub fn rgba(r: u8, g: u8, b: u8, a: u8) Color {
     return rgbaf(
-        @floatFromInt(f32, r) / 255.0,
-        @floatFromInt(f32, g) / 255.0,
-        @floatFromInt(f32, b) / 255.0,
-        @floatFromInt(f32, a) / 255.0,
+        @as(f32, @floatFromInt(r)) / 255.0,
+        @as(f32, @floatFromInt(g)) / 255.0,
+        @as(f32, @floatFromInt(b)) / 255.0,
+        @as(f32, @floatFromInt(a)) / 255.0,
     );
 }
 
@@ -268,7 +268,7 @@ pub fn lerpRGBA(c0: Color, c1: Color, u: f32) Color {
 // // Sets transparency of a color value.
 // NVGcolor nvgTransRGBA(NVGcolor c0, unsigned char a);
 pub fn transRGBA(c0: Color, a: u8) Color {
-    return transRGBAf(c0, @floatFromInt(f32, a) / 255.0);
+    return transRGBAf(c0, @as(f32, @floatFromInt(a)) / 255.0);
 }
 
 // // Sets transparency of a color value.
@@ -302,7 +302,7 @@ pub fn hsla(hue: f32, sat: f32, lig: f32, a: u8) Color {
         .r = std.math.clamp(getHue(h + 1.0 / 3.0, m1, m2), 0, 1),
         .g = std.math.clamp(getHue(h, m1, m2), 0, 1),
         .b = std.math.clamp(getHue(h - 1.0 / 3.0, m1, m2), 0, 1),
-        .a = @floatFromInt(f32, a) / 255.0,
+        .a = @as(f32, @floatFromInt(a)) / 255.0,
     };
 }
 fn getHue(hue: f32, m1: f32, m2: f32) f32 {
@@ -576,12 +576,12 @@ pub fn transformInverse(dst: *[6]f32, src: *const [6]f32) bool {
         return false;
     }
     const invdet = 1.0 / det;
-    inv[0] = @floatCast(f32, t[3] * invdet);
-    inv[2] = @floatCast(f32, -t[2] * invdet);
-    inv[4] = @floatCast(f32, (t[2] * t[5] - t[3] * t[4]) * invdet);
-    inv[1] = @floatCast(f32, -t[1] * invdet);
-    inv[3] = @floatCast(f32, t[0] * invdet);
-    inv[5] = @floatCast(f32, (t[1] * t[4] - t[0] * t[5]) * invdet);
+    inv[0] = @floatCast(t[3] * invdet);
+    inv[2] = @floatCast(-t[2] * invdet);
+    inv[4] = @floatCast((t[2] * t[5] - t[3] * t[4]) * invdet);
+    inv[1] = @floatCast(-t[1] * invdet);
+    inv[3] = @floatCast(t[0] * invdet);
+    inv[5] = @floatCast((t[1] * t[4] - t[0] * t[5]) * invdet);
     return true;
 }
 

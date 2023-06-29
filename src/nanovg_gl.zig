@@ -86,7 +86,7 @@ const GLContext = struct {
     }
 
     fn castPtr(ptr: *anyopaque) *GLContext {
-        return @ptrCast(*GLContext, @alignCast(@alignOf(*GLContext), ptr));
+        return @alignCast(@ptrCast(ptr));
     }
 
     fn checkError(ctx: GLContext, str: []const u8) void {
@@ -146,7 +146,7 @@ const Shader = struct {
         var str: [2][*]const u8 = undefined;
         var len: [2]gl.GLint = undefined;
         str[0] = header.ptr;
-        len[0] = @intCast(gl.GLint, header.len);
+        len[0] = @intCast(header.len);
 
         shader.* = std.mem.zeroes(Shader);
 
@@ -154,10 +154,10 @@ const Shader = struct {
         const vert = gl.glCreateShader(gl.GL_VERTEX_SHADER);
         const frag = gl.glCreateShader(gl.GL_FRAGMENT_SHADER);
         str[1] = vertsrc.ptr;
-        len[1] = @intCast(gl.GLint, vertsrc.len);
+        len[1] = @intCast(vertsrc.len);
         gl.glShaderSource(vert, 2, &str[0], &len[0]);
         str[1] = fragsrc.ptr;
-        len[1] = @intCast(gl.GLint, fragsrc.len);
+        len[1] = @intCast(fragsrc.len);
         gl.glShaderSource(frag, 2, &str[0], &len[0]);
 
         gl.glCompileShader(vert);
@@ -212,7 +212,7 @@ const Shader = struct {
         var len: gl.GLsizei = 0;
         gl.glGetShaderInfoLog(shader, 512, &len, &buf[0]);
         if (len > 512) len = 512;
-        const log = buf[0..@intCast(usize, len)];
+        const log = buf[0..@intCast(len)];
         logger.err("Shader {s}/{s} error:\n{s}", .{ name, shader_type, log });
     }
 
@@ -221,7 +221,7 @@ const Shader = struct {
         var len: gl.GLsizei = 0;
         gl.glGetProgramInfoLog(program, 512, &len, &buf[0]);
         if (len > 512) len = 512;
-        const log = buf[0..@intCast(usize, len)];
+        const log = buf[0..@intCast(len)];
         logger.err("Program {s} error:\n{s}", .{ name, log });
     }
 };
@@ -304,7 +304,7 @@ const Call = struct {
         gl.glStencilOpSeparate(gl.GL_BACK, gl.GL_KEEP, gl.GL_KEEP, gl.GL_DECR_WRAP);
         gl.glDisable(gl.GL_CULL_FACE);
         for (paths) |path| {
-            gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(gl.GLint, path.fill_offset), @intCast(gl.GLsizei, path.fill_count));
+            gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(path.fill_offset), @intCast(path.fill_count));
         }
         gl.glEnable(gl.GL_CULL_FACE);
 
@@ -319,14 +319,14 @@ const Call = struct {
             gl.glStencilOp(gl.GL_KEEP, gl.GL_KEEP, gl.GL_KEEP);
             // Draw fringes
             for (paths) |path| {
-                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, path.stroke_offset), @intCast(gl.GLsizei, path.stroke_count));
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
             }
         }
 
         // Draw fill
         gl.glStencilFunc(gl.GL_NOTEQUAL, 0x0, 0xff);
         gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_ZERO);
-        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, call.triangle_offset), @intCast(gl.GLsizei, call.triangle_count));
+        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(call.triangle_offset), @intCast(call.triangle_count));
     }
 
     fn convexFill(call: Call, ctx: *GLContext) void {
@@ -336,10 +336,10 @@ const Call = struct {
         ctx.checkError("convex fill");
 
         for (paths) |path| {
-            gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(gl.GLint, path.fill_offset), @intCast(gl.GLsizei, path.fill_count));
+            gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(path.fill_offset), @intCast(path.fill_count));
             // Draw fringes
             if (path.stroke_count > 0) {
-                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, path.stroke_offset), @intCast(gl.GLsizei, path.stroke_count));
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
             }
         }
     }
@@ -359,7 +359,7 @@ const Call = struct {
             setUniforms(ctx, call.uniform_offset + 1, call.image, call.colormap);
             ctx.checkError("stroke fill 0");
             for (paths) |path| {
-                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, path.stroke_offset), @intCast(gl.GLsizei, path.stroke_count));
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
             }
 
             // Draw anti-aliased pixels.
@@ -367,7 +367,7 @@ const Call = struct {
             gl.glStencilFunc(gl.GL_EQUAL, 0x00, 0xff);
             gl.glStencilOp(gl.GL_KEEP, gl.GL_KEEP, gl.GL_KEEP);
             for (paths) |path| {
-                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, path.stroke_offset), @intCast(gl.GLsizei, path.stroke_count));
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
             }
 
             // Clear stencil buffer.
@@ -376,14 +376,14 @@ const Call = struct {
             gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_ZERO);
             ctx.checkError("stroke fill 1");
             for (paths) |path| {
-                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, path.stroke_offset), @intCast(gl.GLsizei, path.stroke_count));
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
             }
             gl.glColorMask(gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE);
         } else {
             setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
             // Draw Strokes
             for (paths) |path| {
-                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(gl.GLint, path.stroke_offset), @intCast(gl.GLsizei, path.stroke_count));
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
             }
         }
     }
@@ -391,7 +391,7 @@ const Call = struct {
     fn triangles(call: Call, ctx: *GLContext) void {
         setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
         ctx.checkError("triangles fill");
-        gl.glDrawArrays(gl.GL_TRIANGLES, @intCast(gl.GLint, call.triangle_offset), @intCast(gl.GLsizei, call.triangle_count));
+        gl.glDrawArrays(gl.GL_TRIANGLES, @intCast(call.triangle_offset), @intCast(call.triangle_count));
     }
 };
 
@@ -487,7 +487,7 @@ const FragUniforms = struct {
             } else {
                 _ = nvg.transformInverse(&invxform, &paint.xform);
             }
-            frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.fill_image));
+            frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.fill_image));
 
             if (tex.tex_type == .rgba) {
                 frag.tex_type = if (tex.flags.premultiplied) 0 else 1;
@@ -497,7 +497,7 @@ const FragUniforms = struct {
                 frag.tex_type = 3;
             }
         } else {
-            frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.fill_gradient));
+            frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.fill_gradient));
             frag.radius = paint.radius;
             frag.feather = paint.feather;
             _ = nvg.transformInverse(&invxform, &paint.xform);
@@ -511,7 +511,7 @@ const FragUniforms = struct {
 
 fn setUniforms(ctx: *GLContext, uniform_offset: u32, image: i32, colormap: i32) void {
     const frag = &ctx.uniforms.items[uniform_offset];
-    gl.glUniform4fv(ctx.shader.frag_loc, 11, @ptrCast([*]f32, frag));
+    gl.glUniform4fv(ctx.shader.frag_loc, 11, @ptrCast(frag));
 
     if (colormap != 0) {
         if (ctx.findTexture(colormap)) |tex| {
@@ -616,7 +616,7 @@ fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: i32, y: i32, w_arg: 
 
     // No support for all of skip, need to update a whole row at a time.
     const color_size: u32 = if (tex.tex_type == .rgba) 4 else 1;
-    const y0: u32 = @intCast(u32, y * tex.width);
+    const y0: u32 = @intCast(y * tex.width);
     const data = &data_arg.?[y0 * color_size];
     const x = 0;
     const w = tex.width;
@@ -680,11 +680,11 @@ fn renderFlush(uptr: *anyopaque) void {
         gl.glBindTexture(gl.GL_TEXTURE_2D, 0);
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, ctx.vert_buf);
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(gl.GLsizeiptr, ctx.verts.items.len * @sizeOf(internal.Vertex)), ctx.verts.items.ptr, gl.GL_STREAM_DRAW);
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, @intCast(ctx.verts.items.len * @sizeOf(internal.Vertex)), ctx.verts.items.ptr, gl.GL_STREAM_DRAW);
         gl.glEnableVertexAttribArray(0);
         gl.glEnableVertexAttribArray(1);
         gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(internal.Vertex), null);
-        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(internal.Vertex), @ptrFromInt(*anyopaque, 2 * @sizeOf(f32)));
+        gl.glVertexAttribPointer(1, 2, gl.GL_FLOAT, gl.GL_FALSE, @sizeOf(internal.Vertex), @ptrFromInt(2 * @sizeOf(f32)));
 
         // Set view and texture just once per frame.
         gl.glUniform1i(ctx.shader.tex_loc, 0);
@@ -730,8 +730,8 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
         call.triangle_count = 0; // Bounding box fill quad not needed for convex fill
     }
     ctx.paths.ensureUnusedCapacity(paths.len) catch return;
-    call.path_offset = @intCast(u32, ctx.paths.items.len);
-    call.path_count = @intCast(u32, paths.len);
+    call.path_offset = @intCast(ctx.paths.items.len);
+    call.path_count = @intCast(paths.len);
     call.image = paint.image.handle;
     call.colormap = paint.colormap.handle;
     call.blend_func = Blend.fromOperation(composite_operation);
@@ -744,13 +744,13 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
         const copy = ctx.paths.addOneAssumeCapacity();
         copy.* = std.mem.zeroes(Path);
         if (path.fill.len > 0) {
-            copy.fill_offset = @intCast(u32, ctx.verts.items.len);
-            copy.fill_count = @intCast(u32, path.fill.len);
+            copy.fill_offset = @intCast(ctx.verts.items.len);
+            copy.fill_count = @intCast(path.fill.len);
             ctx.verts.appendSliceAssumeCapacity(path.fill);
         }
         if (path.stroke.len > 0) {
-            copy.stroke_offset = @intCast(u32, ctx.verts.items.len);
-            copy.stroke_count = @intCast(u32, path.stroke.len);
+            copy.stroke_offset = @intCast(ctx.verts.items.len);
+            copy.stroke_count = @intCast(path.stroke.len);
             ctx.verts.appendSliceAssumeCapacity(path.stroke);
         }
     }
@@ -758,23 +758,23 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
     // Setup uniforms for draw calls
     if (call.call_type == .fill) {
         // Quad
-        call.triangle_offset = @intCast(u32, ctx.verts.items.len);
+        call.triangle_offset = @intCast(ctx.verts.items.len);
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[2], .y = bounds[3], .u = 0.5, .v = 1.0 });
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[2], .y = bounds[1], .u = 0.5, .v = 1.0 });
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[0], .y = bounds[3], .u = 0.5, .v = 1.0 });
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[0], .y = bounds[1], .u = 0.5, .v = 1.0 });
 
-        call.uniform_offset = @intCast(u32, ctx.uniforms.items.len);
+        call.uniform_offset = @intCast(ctx.uniforms.items.len);
         ctx.uniforms.ensureUnusedCapacity(2) catch return;
         // Simple shader for stencil
         const frag = ctx.uniforms.addOneAssumeCapacity();
         frag.* = std.mem.zeroes(FragUniforms);
         frag.stroke_thr = -1.0;
-        frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.simple));
+        frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.simple));
         // Fill shader
         _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1.0, ctx);
     } else {
-        call.uniform_offset = @intCast(u32, ctx.uniforms.items.len);
+        call.uniform_offset = @intCast(ctx.uniforms.items.len);
         ctx.uniforms.ensureUnusedCapacity(1) catch return;
         // Fill shader
         _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1.0, ctx);
@@ -789,8 +789,8 @@ fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Co
 
     call.call_type = .stroke;
     ctx.paths.ensureUnusedCapacity(paths.len) catch return;
-    call.path_offset = @intCast(u32, ctx.paths.items.len);
-    call.path_count = @intCast(u32, paths.len);
+    call.path_offset = @intCast(ctx.paths.items.len);
+    call.path_count = @intCast(paths.len);
     call.image = paint.image.handle;
     call.colormap = paint.colormap.handle;
     call.blend_func = Blend.fromOperation(composite_operation);
@@ -803,21 +803,21 @@ fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Co
         const copy = ctx.paths.addOneAssumeCapacity();
         copy.* = std.mem.zeroes(Path);
         if (path.stroke.len > 0) {
-            copy.stroke_offset = @intCast(u32, ctx.verts.items.len);
-            copy.stroke_count = @intCast(u32, path.stroke.len);
+            copy.stroke_offset = @intCast(ctx.verts.items.len);
+            copy.stroke_count = @intCast(path.stroke.len);
             ctx.verts.appendSliceAssumeCapacity(path.stroke);
         }
     }
 
     if (ctx.options.stencil_strokes) {
         // Fill shader
-        call.uniform_offset = @intCast(u32, ctx.uniforms.items.len);
+        call.uniform_offset = @intCast(ctx.uniforms.items.len);
         ctx.uniforms.ensureUnusedCapacity(2) catch return;
         _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1, ctx);
         _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, strokeWidth, fringe, 1.0 - 0.5 / 255.0, ctx);
     } else {
         // Fill shader
-        call.uniform_offset = @intCast(u32, ctx.uniforms.items.len);
+        call.uniform_offset = @intCast(ctx.uniforms.items.len);
         _ = ctx.uniforms.ensureUnusedCapacity(1) catch return;
         _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, strokeWidth, fringe, -1, ctx);
     }
@@ -834,14 +834,14 @@ fn renderTriangles(uptr: *anyopaque, paint: *nvg.Paint, comp_op: nvg.CompositeOp
     call.colormap = paint.colormap.handle;
     call.blend_func = Blend.fromOperation(comp_op);
 
-    call.triangle_offset = @intCast(u32, ctx.verts.items.len);
-    call.triangle_count = @intCast(u32, verts.len);
+    call.triangle_offset = @intCast(ctx.verts.items.len);
+    call.triangle_count = @intCast(verts.len);
     ctx.verts.appendSlice(verts) catch return;
 
-    call.uniform_offset = @intCast(u32, ctx.uniforms.items.len);
+    call.uniform_offset = @intCast(ctx.uniforms.items.len);
     const frag = ctx.uniforms.addOne() catch return;
     _ = frag.fromPaint(paint, scissor, 1, fringe, -1, ctx);
-    frag.shaderType = @floatFromInt(f32, @intFromEnum(ShaderType.image));
+    frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.image));
 }
 
 fn renderDelete(uptr: *anyopaque) void {

@@ -257,21 +257,21 @@ pub const Context = struct {
         var w: c_int = undefined;
         var h: c_int = undefined;
         var n: c_int = undefined;
-        const maybe_img = c.stbi_load_from_memory(data.ptr, @intCast(c_int, data.len), &w, &h, &n, 4);
+        const maybe_img = c.stbi_load_from_memory(data.ptr, @intCast(data.len), &w, &h, &n, 4);
         if (maybe_img) |img| {
             defer c.stbi_image_free(img);
-            const size = @intCast(usize, w * h * 4);
-            return ctx.createImageRGBA(@intCast(u32, w), @intCast(u32, h), flags, img[0..size]);
+            const size: usize = @intCast(w * h * 4);
+            return ctx.createImageRGBA(@intCast(w), @intCast(h), flags, img[0..size]);
         }
         return .{ .handle = 0 };
     }
 
     pub fn createImageRGBA(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) catch 0 };
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(w), @intCast(h), flags, data.ptr) catch 0 };
     }
 
     pub fn createImageAlpha(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, @intCast(i32, w), @intCast(i32, h), flags, data.ptr) catch 0 };
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, @intCast(w), @intCast(h), flags, data.ptr) catch 0 };
     }
 
     pub fn updateImage(ctx: *Context, image: Image, data: []const u8) void {
@@ -439,7 +439,7 @@ pub const Context = struct {
                     i += 1;
                 },
                 .winding => {
-                    cache.pathWinding(@enumFromInt(nvg.Winding, @intFromFloat(u2, ctx.commands.items[i + 1])));
+                    cache.pathWinding(@enumFromInt(@as(u2, @intFromFloat(ctx.commands.items[i + 1]))));
                     i += 2;
                 },
             }
@@ -849,7 +849,7 @@ pub const Context = struct {
     }
 
     pub fn pathWinding(ctx: *Context, dir: nvg.Winding) void {
-        ctx.appendCommands(.{ Command.winding.toValue(), @floatFromInt(f32, @intFromEnum(dir)) });
+        ctx.appendCommands(.{ Command.winding.toValue(), @as(f32, @floatFromInt(@intFromEnum(dir))) });
     }
 
     pub fn arc(ctx: *Context, cx: f32, cy: f32, r: f32, a0: f32, a1: f32, dir: nvg.Winding) void {
@@ -1169,8 +1169,8 @@ pub const Context = struct {
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
-            if (path.fill.len >= 2) ctx.fill_tri_count += @intCast(u32, path.fill.len - 2);
-            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(u32, path.stroke.len - 2);
+            if (path.fill.len >= 2) ctx.fill_tri_count += @intCast(path.fill.len - 2);
+            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(path.stroke.len - 2);
             ctx.draw_call_count += 2;
         }
     }
@@ -1203,13 +1203,13 @@ pub const Context = struct {
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
-            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(u32, path.stroke.len - 2);
+            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(path.stroke.len - 2);
             ctx.draw_call_count += 2;
         }
     }
 
     pub fn createFontMem(ctx: *Context, name: [:0]const u8, data: []const u8) i32 {
-        return c.fonsAddFontMem(ctx.fs, name.ptr, @ptrFromInt([*]u8, @intFromPtr(data.ptr)), @intCast(c_int, data.len), 0, 0);
+        return c.fonsAddFontMem(ctx.fs, name.ptr, @ptrFromInt(@intFromPtr(data.ptr)), @intCast(data.len), 0, 0);
     }
 
     pub fn addFallbackFontId(ctx: *Context, base_font: Font, fallback_font: Font) bool {
@@ -1312,7 +1312,7 @@ pub const Context = struct {
         ctx.params.renderTriangles(ctx.params.user_ptr, &paint, state.composite_operation, &state.scissor, ctx.fringe_width, verts);
 
         ctx.draw_call_count += 1;
-        ctx.text_tri_count += @intCast(u32, verts.len) / 3;
+        ctx.text_tri_count += @as(u32, @intCast(verts.len)) / 3;
     }
 
     pub fn text(ctx: *Context, x: f32, y: f32, string: []const u8) f32 {
@@ -1329,7 +1329,7 @@ pub const Context = struct {
         c.fonsSetAlign(ctx.fs, state.text_align.toInt());
         c.fonsSetFont(ctx.fs, state.font_id);
 
-        const cverts = @intCast(u32, @max(2, string.len) * 6); // conservative estimate.
+        const cverts: u32 = @intCast(@max(2, string.len) * 6); // conservative estimate.
         var verts = ctx.cache.allocTempVerts(cverts) catch return x;
         var nverts: u32 = 0;
 
@@ -1788,11 +1788,11 @@ const Command = enum(i32) {
     winding = 4,
 
     fn fromValue(val: f32) Command {
-        return @enumFromInt(Command, @intFromFloat(i32, val));
+        return @enumFromInt(@as(i32, @intFromFloat(val)));
     }
 
     fn toValue(command: Command) f32 {
-        return @floatFromInt(f32, @intFromEnum(command));
+        return @floatFromInt(@intFromEnum(command));
     }
 };
 
@@ -1942,7 +1942,7 @@ const PathCache = struct {
     fn addPath(cache: *PathCache) void {
         const path = cache.paths.addOne() catch return;
         path.* = std.mem.zeroes(Path);
-        path.first = @truncate(u32, cache.points.items.len);
+        path.first = @truncate(cache.points.items.len);
         path.winding = .ccw;
     }
 
@@ -2077,7 +2077,7 @@ fn polyReverse(pts: []Point) void {
 
 fn curveDivs(r: f32, arc: f32, tol: f32) u32 {
     const da = std.math.acos(r / (r + tol)) * 2;
-    return @max(2, @intFromFloat(u32, @ceil(arc / da)));
+    return @max(2, @as(u32, @intFromFloat(@ceil(arc / da))));
 }
 
 fn chooseBevel(bevel: bool, p0: Point, p1: Point, w: f32, x0: *f32, y0: *f32, x1: *f32, y1: *f32) void {
@@ -2114,7 +2114,7 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
         dst.addOneAssumeCapacity().set(lx0, ly0, lu, 1);
         dst.addOneAssumeCapacity().set(p1.x - dlx0 * rw, p1.y - dly0 * rw, ru, 1);
 
-        const ncapf = @floatFromInt(f32, ncap);
+        const ncapf: f32 = @floatFromInt(ncap);
         const n = std.math.clamp(@ceil(((a0 - a1) / std.math.pi) * ncapf), 2, ncapf);
         var i: f32 = 0;
         while (i < n) : (i += 1) {
@@ -2141,7 +2141,7 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
         dst.addOneAssumeCapacity().set(p1.x + dlx0 * rw, p1.y + dly0 * rw, lu, 1);
         dst.addOneAssumeCapacity().set(rx0, ry0, ru, 1);
 
-        const ncapf = @floatFromInt(f32, ncap);
+        const ncapf: f32 = @floatFromInt(ncap);
         const n = std.math.clamp(@ceil(((a0 - a1) / std.math.pi) * ncapf), 2, ncapf);
         var i: f32 = 0;
         while (i < n) : (i += 1) {
@@ -2262,7 +2262,7 @@ fn roundCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, nc
     const dly = -dx;
     var i: u32 = 0;
     while (i < ncap) : (i += 1) {
-        const a = @floatFromInt(f32, i) / @floatFromInt(f32, ncap - 1) * std.math.pi;
+        const a = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(ncap - 1)) * std.math.pi;
         const ax = @cos(a) * w;
         const ay = @sin(a) * w;
         dst.addOneAssumeCapacity().set(px - dlx * ax - dx * ay, py - dly * ax - dy * ay, @"u0", 1);
@@ -2282,7 +2282,7 @@ fn roundCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap
     dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
     var i: u32 = 0;
     while (i < ncap) : (i += 1) {
-        const a = @floatFromInt(f32, i) / @floatFromInt(f32, ncap - 1) * std.math.pi;
+        const a = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(ncap - 1)) * std.math.pi;
         const ax = @cos(a) * w;
         const ay = @sin(a) * w;
         dst.addOneAssumeCapacity().set(px, py, 0.5, 1);
