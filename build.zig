@@ -13,9 +13,9 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     lib.addModule("nanovg", nanovg);
-    lib.addIncludePath("src");
-    lib.addCSourceFile("src/fontstash.c", &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" });
-    lib.addCSourceFile("src/stb_image.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
+    lib.addIncludePath(.{ .path = "src" });
+    lib.addCSourceFile(.{ .file = .{ .path = "src/fontstash.c" }, .flags = &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" } });
+    lib.addCSourceFile(.{ .file = .{ .path = "src/stb_image.c" }, .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
     lib.linkLibC();
     lib.installHeader("src/fontstash.h", "fontstash.h");
     lib.installHeader("src/stb_image.h", "stb_image.h");
@@ -46,8 +46,8 @@ pub fn build(b: *std.Build) !void {
     if (target_wasm) {
         demo.rdynamic = true;
     } else {
-        demo.addIncludePath("lib/gl2/include");
-        demo.addCSourceFile("lib/gl2/src/glad.c", &.{});
+        demo.addIncludePath(.{ .path = "lib/gl2/include" });
+        demo.addCSourceFile(.{ .file = .{ .path = "lib/gl2/src/glad.c" }, .flags = &.{} });
         if (target.isWindows()) {
             demo.addVcpkgPaths(.dynamic) catch @panic("vcpkg not installed");
             if (demo.vcpkg_bin_path) |bin_path| {
@@ -71,9 +71,9 @@ pub fn build(b: *std.Build) !void {
             demo.linkSystemLibrary("GL");
         }
     }
-    demo.addIncludePath("src");
-    demo.addIncludePath("examples");
-    demo.addCSourceFile("examples/stb_image_write.c", &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" });
+    lib.addIncludePath(.{ .path = "src" });
+    demo.addIncludePath(.{ .path = "examples" });
+    demo.addCSourceFile(.{ .file = .{ .path = "examples/stb_image_write.c" }, .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
     b.installArtifact(demo);
 
     const run_cmd = b.addRunArtifact(demo);
