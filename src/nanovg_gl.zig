@@ -23,6 +23,9 @@ pub const Options = struct {
 };
 
 pub fn init(allocator: Allocator, options: Options) !nvg {
+    if (!use_webgl) {
+        if (gl.gladLoadGL() == 0) return error.GLADInitFailed;
+    }
     const gl_context = try GLContext.init(allocator, options);
 
     const params = internal.Params{
