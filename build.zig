@@ -20,6 +20,8 @@ pub fn build(b: *std.Build) !void {
     lib.installHeader("src/fontstash.h", "fontstash.h");
     lib.installHeader("src/stb_image.h", "stb_image.h");
     lib.installHeader("src/stb_truetype.h", "stb_truetype.h");
+    lib.addCSourceFile(.{ .file = .{ .path = "lib/gl2/src/glad.c" }, .flags = &.{} });
+    lib.addIncludePath(.{ .path = "lib/gl2/include" });
     b.installArtifact(lib);
 
     const target_wasm = if (target.cpu_arch) |arch| arch.isWasm() else false;
@@ -47,7 +49,6 @@ pub fn build(b: *std.Build) !void {
         demo.rdynamic = true;
     } else {
         demo.addIncludePath(.{ .path = "lib/gl2/include" });
-        demo.addCSourceFile(.{ .file = .{ .path = "lib/gl2/src/glad.c" }, .flags = &.{} });
         if (target.isWindows()) {
             demo.addVcpkgPaths(.dynamic) catch @panic("vcpkg not installed");
             if (demo.vcpkg_bin_path) |bin_path| {
