@@ -25,12 +25,22 @@ pub fn build(b: *std.Build) !void {
     const target_wasm = if (target.cpu_arch) |arch| arch.isWasm() else false;
     const demo = init: {
         if (target_wasm) {
-            break :init b.addSharedLibrary(.{
+            const lib = b.addSharedLibrary(.{
                 .name = "demo",
                 .root_source_file = .{ .path = "examples/example_wasm.zig" },
                 .target = target,
                 .optimize = optimize,
             });
+            // lib.import_table = true;
+            lib.bundle_compiler_rt = true;
+            lib.export_symbol_names = &.{
+                "onInit",
+                "onResize",
+                "onKeyDown",
+                "onMouseMove",
+                "onAnimationFrame",
+            };
+            break :init lib;
         } else {
             break :init b.addExecutable(.{
                 .name = "demo",
