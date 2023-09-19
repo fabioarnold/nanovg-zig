@@ -61,7 +61,7 @@ pub fn main() !void {
         return error.GLADInitFailed;
     }
 
-    var vg = try nvg.backends.gl.init(allocator, .{
+    var vg = try nvg.gl.init(allocator, .{
         .antialias = true,
         .stencil_strokes = false,
         .debug = true,

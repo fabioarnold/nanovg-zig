@@ -39,7 +39,7 @@ The drawing context is created using a backend-specific initialization function.
 ```zig
 const nvg = @import("nanovg");
 ...
-var vg = try nvg.backend.gl.init(allocator, .{
+var vg = try nvg.gl.init(allocator, .{
 	.antialias = true,
 	.stencil_strokes = false,
 	.debug = true,

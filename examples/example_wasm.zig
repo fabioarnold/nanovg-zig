@@ -46,7 +46,7 @@ export fn onInit() void {
 
     wasm.global_allocator = allocator;
 
-    vg = nvg.backend.gl.init(allocator, .{}) catch {
+    vg = nvg.gl.init(allocator, .{}) catch {
         logger.err("Failed to create NanoVG", .{});
         return;
     };

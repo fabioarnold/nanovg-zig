@@ -3,10 +3,8 @@ const std = @import("std");
 /// Internal implementation, available for custom backends
 pub const internal = @import("internal.zig");
 
-/// Vendored backends, GL is the default
-pub const backend = struct {
-    pub const gl = @import("nanovg_gl.zig");
-};
+/// OpenGL backend provided by default
+pub const gl = @import("nanovg_gl.zig");
 
 const Self = @This();
 
