@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const internal = @import("internal.zig");
+/// Internal implementation, available for custom backends
+pub const internal = @import("internal.zig");
 
+/// OpenGL backend provided by default
 pub const gl = @import("nanovg_gl.zig");
 
 const Self = @This();
