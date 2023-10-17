@@ -387,8 +387,8 @@ pub const Context = struct {
         const dx = x4 - x1;
         const dy = y4 - y1;
 
-        const d2 = @fabs(((x2 - x4) * dy - (y2 - y4) * dx));
-        const d3 = @fabs(((x3 - x4) * dy - (y3 - y4) * dx));
+        const d2 = @abs(((x2 - x4) * dy - (y2 - y4) * dx));
+        const d3 = @abs(((x3 - x4) * dy - (y3 - y4) * dx));
 
         if ((d2 + d3) * (d2 + d3) < ctx.tess_tol * (dx * dx + dy * dy)) {
             ctx.cache.addPoint(x4, y4, cornerType, ctx.dist_tol);
@@ -858,13 +858,13 @@ pub const Context = struct {
         // Clamp angles
         var da = a1 - a0;
         if (dir == .cw) {
-            if (@fabs(da) >= std.math.pi * 2.0) {
+            if (@abs(da) >= std.math.pi * 2.0) {
                 da = std.math.pi * 2.0;
             } else {
                 while (da < 0.0) da += std.math.pi * 2.0;
             }
         } else {
-            if (@fabs(da) >= std.math.pi * 2.0) {
+            if (@abs(da) >= std.math.pi * 2.0) {
                 da = -std.math.pi * 2.0;
             } else {
                 while (da > 0.0) da -= std.math.pi * 2.0;
@@ -872,9 +872,9 @@ pub const Context = struct {
         }
 
         // Split arc into max 90 degree segments.
-        const ndivs = std.math.clamp(@round(@fabs(da) / (std.math.pi * 0.5)), 1, 5);
+        const ndivs = std.math.clamp(@round(@abs(da) / (std.math.pi * 0.5)), 1, 5);
         const hda = (da / ndivs) / 2.0;
-        var kappa = @fabs(4.0 / 3.0 * (1.0 - @cos(hda)) / @sin(hda));
+        var kappa = @abs(4.0 / 3.0 * (1.0 - @cos(hda)) / @sin(hda));
 
         if (dir == .ccw)
             kappa = -kappa;
@@ -923,8 +923,8 @@ pub const Context = struct {
         if (radTopLeft < 0.1 and radTopRight < 0.1 and radBottomRight < 0.1 and radBottomLeft < 0.1) {
             ctx.rect(x, y, w, h);
         } else {
-            const halfw = @fabs(w) * 0.5;
-            const halfh = @fabs(h) * 0.5;
+            const halfw = @abs(w) * 0.5;
+            const halfh = @abs(h) * 0.5;
             const rxBL = @min(radBottomLeft, halfw) * sign(w);
             const ryBL = @min(radBottomLeft, halfh) * sign(h);
             const rxBR = @min(radBottomRight, halfw) * sign(w);
@@ -1135,8 +1135,8 @@ pub const Context = struct {
         _ = nvg.transformInverse(&invxform, &state.xform);
         var pxform: [6]f32 = state.scissor.xform;
         nvg.transformMultiply(&pxform, &invxform);
-        const tex = ex * @fabs(pxform[0]) + ey * @fabs(pxform[2]);
-        const tey = ex * @fabs(pxform[1]) + ey * @fabs(pxform[3]);
+        const tex = ex * @abs(pxform[0]) + ey * @abs(pxform[2]);
+        const tey = ex * @abs(pxform[1]) + ey * @abs(pxform[3]);
 
         // Intersect rects.
         var irect: [4]f32 = undefined;
