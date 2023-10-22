@@ -568,6 +568,7 @@ pub const Context = struct {
         const convex = cache.paths.items.len == 1 and cache.paths.items[0].convex;
 
         for (cache.paths.items) |*path| {
+            if (path.count == 0) continue;
             const pts = cache.points.items[path.first..][0..path.count];
 
             // Calculate shape vertices.
