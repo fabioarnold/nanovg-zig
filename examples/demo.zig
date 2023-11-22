@@ -1056,6 +1056,26 @@ fn unpremultiplyAlpha(image: []u8, w: usize, h: usize, stride: usize) void {
     }
 }
 
+fn premultiplyAlpha(image: []u8, w: usize, h: usize, stride: usize) void {
+    var y: usize = 0;
+    while (y < h) : (y += 1) {
+        var row = image[y * stride ..][0 .. w * 4];
+        var x: usize = 0;
+        while (x < w) : (x += 1) {
+            defer row = row[4..];
+            const r = @as(u32, row[0]);
+            const g = @as(u32, row[1]);
+            const b = @as(u32, row[2]);
+            const a = @as(u32, row[3]);
+            if (a != 0) {
+                row[0] = @truncate(@min(r * a / 255, 255));
+                row[1] = @truncate(@min(g * a / 255, 255));
+                row[2] = @truncate(@min(b * a / 255, 255));
+            }
+        }
+    }
+}
+
 fn stbiWriteFunc(context: ?*anyopaque, data: ?*anyopaque, size: c_int) callconv(.C) void {
     const buffer: *ArrayList(u8) = @alignCast(@ptrCast(context.?));
     const slice = @as([*]const u8, @ptrCast(data.?))[0..@intCast(size)];
