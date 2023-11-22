@@ -614,9 +614,9 @@ pub const Context = struct {
             // Calculate fringe
             if (fringe) {
                 var lw = w + woff;
-                var rw = w - woff;
+                const rw = w - woff;
                 var lu: f32 = 0;
-                var ru: f32 = 1;
+                const ru: f32 = 1;
                 dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
                 dst.clearRetainingCapacity();
 
@@ -1643,7 +1643,7 @@ pub const Context = struct {
 
         // Break the line from the end of the last word, and start new line from the beginning of the new.
         if (rowStart != null) {
-            var n = @intFromPtr(rowEnd) - @intFromPtr(rowStart);
+            const n = @intFromPtr(rowEnd) - @intFromPtr(rowStart);
             rows[nrows].text = rowStart.?[0..n];
             rows[nrows].width = rowWidth * invs;
             rows[nrows].minx = rowMinX * invs;
@@ -1713,7 +1713,7 @@ pub const Context = struct {
         rminy *= invs;
         rmaxy *= invs;
 
-        var x = x_arg;
+        const x = x_arg;
         var y = y_arg;
         var string = string_arg;
 
@@ -2108,7 +2108,7 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
         var lx1: f32 = undefined;
         var ly1: f32 = undefined;
         chooseBevel(p1.flags.innerbevel, p0, p1, lw, &lx0, &ly0, &lx1, &ly1);
-        var a0 = std.math.atan2(f32, -dly0, -dlx0);
+        const a0 = std.math.atan2(f32, -dly0, -dlx0);
         var a1 = std.math.atan2(f32, -dly1, -dlx1);
         if (a1 > a0) a1 -= std.math.pi * 2.0;
 
@@ -2135,7 +2135,7 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
         var rx1: f32 = undefined;
         var ry1: f32 = undefined;
         chooseBevel(p1.flags.innerbevel, p0, p1, -rw, &rx0, &ry0, &rx1, &ry1);
-        var a0 = std.math.atan2(f32, dly0, dlx0);
+        const a0 = std.math.atan2(f32, dly0, dlx0);
         var a1 = std.math.atan2(f32, dly1, dlx1);
         if (a1 < a0) a1 += std.math.pi * 2.0;
 

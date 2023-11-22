@@ -23,28 +23,20 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(lib);
 
     const target_wasm = if (target.cpu_arch) |arch| arch.isWasm() else false;
-    const demo = init: {
-        if (target_wasm) {
-            break :init b.addSharedLibrary(.{
-                .name = "demo",
-                .root_source_file = .{ .path = "examples/example_wasm.zig" },
-                .target = target,
-                .optimize = optimize,
-            });
-        } else {
-            break :init b.addExecutable(.{
-                .name = "demo",
-                .root_source_file = .{ .path = "examples/example_glfw.zig" },
-                .target = target,
-                .optimize = optimize,
-            });
-        }
-    };
+    const root_source_file = if (target_wasm) "examples/example_wasm.zig" else "examples/example_glfw.zig";
+    const demo = b.addExecutable(.{
+        .name = "demo",
+        .root_source_file = .{ .path = root_source_file },
+        .main_mod_path = .{ .path = "." },
+        .target = target,
+        .optimize = optimize,
+    });
     demo.addModule("nanovg", nanovg);
     demo.linkLibrary(lib);
 
     if (target_wasm) {
         demo.rdynamic = true;
+        demo.entry = .disabled;
     } else {
         demo.addIncludePath(.{ .path = "lib/gl2/include" });
         demo.addCSourceFile(.{ .file = .{ .path = "lib/gl2/src/glad.c" }, .flags = &.{} });
@@ -59,7 +51,9 @@ pub fn build(b: *std.Build) !void {
             demo.linkSystemLibrary("glfw3dll");
             demo.linkSystemLibrary("opengl32");
         } else if (target.isDarwin()) {
-            demo.linkSystemLibrary("glfw3");
+            demo.addIncludePath(.{ .path = "/opt/homebrew/include" });
+            demo.addLibraryPath(.{ .path = "/opt/homebrew/lib" });
+            demo.linkSystemLibrary("glfw");
             demo.linkFramework("OpenGL");
         } else if (target.isLinux()) {
             demo.linkSystemLibrary("glfw3");

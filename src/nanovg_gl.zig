@@ -60,7 +60,7 @@ const GLContext = struct {
     uniforms: ArrayList(FragUniforms),
 
     fn init(allocator: Allocator, options: Options) !*GLContext {
-        var self = try allocator.create(GLContext);
+        const self = try allocator.create(GLContext);
         self.* = GLContext{
             .allocator = allocator,
             .options = options,

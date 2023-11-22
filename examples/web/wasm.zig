@@ -42,64 +42,48 @@ pub var global_allocator: std.mem.Allocator = undefined;
 
 const malloc_alignment = 16;
 
-export fn malloc(size: usize) callconv(.C) ?*anyopaque {
+export fn malloc(size: usize) callconv(.C) ?[*]u8 {
     const buffer = global_allocator.alignedAlloc(u8, malloc_alignment, size + malloc_alignment) catch {
         logger.err("Allocation failure for size={}", .{size});
         return null;
     };
-    std.mem.writeIntNative(usize, buffer[0..@sizeOf(usize)], buffer.len);
+    std.mem.writeInt(usize, buffer[0..@sizeOf(usize)], buffer.len, .little);
     return buffer.ptr + malloc_alignment;
 }
 
-export fn realloc(ptr: ?*anyopaque, size: usize) callconv(.C) ?*anyopaque {
+export fn realloc(ptr: ?[*]const u8, size: usize) callconv(.C) ?[*]u8 {
     const p = ptr orelse return malloc(size);
     defer free(p);
     if (size == 0) return null;
-    const actual_buffer = @as([*]u8, @ptrCast(p)) - malloc_alignment;
-    const len = std.mem.readIntNative(usize, actual_buffer[0..@sizeOf(usize)]);
+    const actual_buffer = p - malloc_alignment;
+    const len = std.mem.readInt(usize, actual_buffer[0..@sizeOf(usize)], .little);
     const new = malloc(size);
     return memmove(new, actual_buffer + malloc_alignment, len);
 }
 
-export fn free(ptr: ?*anyopaque) callconv(.C) void {
-    const actual_buffer = @as([*]u8, @ptrCast(ptr orelse return)) - 16;
-    const len = std.mem.readIntNative(usize, actual_buffer[0..@sizeOf(usize)]);
+export fn free(ptr: ?[*]const u8) callconv(.C) void {
+    const actual_buffer = (ptr orelse return) - 16;
+    const len = std.mem.readInt(usize, actual_buffer[0..@sizeOf(usize)], .little);
     global_allocator.free(actual_buffer[0..len]);
 }
 
-export fn memmove(dest: ?*anyopaque, src: ?*anyopaque, n: usize) ?*anyopaque {
-    const csrc = @as([*]u8, @ptrCast(src))[0..n];
-    const cdest = @as([*]u8, @ptrCast(dest))[0..n];
+pub fn memmove(dest: ?[*]u8, src: ?[*]const u8, n: usize) callconv(.C) ?[*]u8 {
+    @setRuntimeSafety(false);
 
-    // Create a temporary array to hold data of src
-    var buf: [1 << 12]u8 = undefined;
-    const temp = if (n <= buf.len) buf[0..n] else @as([*]u8, @ptrCast(malloc(n)))[0..n];
-    defer if (n > buf.len) free(@as(*anyopaque, @ptrCast(temp)));
-
-    for (csrc, 0..) |c, i|
-        temp[i] = c;
-
-    for (temp, 0..) |c, i|
-        cdest[i] = c;
+    if (@intFromPtr(dest) < @intFromPtr(src)) {
+        var index: usize = 0;
+        while (index != n) : (index += 1) {
+            dest.?[index] = src.?[index];
+        }
+    } else {
+        var index = n;
+        while (index != 0) {
+            index -= 1;
+            dest.?[index] = src.?[index];
+        }
+    }
 
     return dest;
-}
-
-export fn memcpy(dst: ?[*]u8, src: ?[*]const u8, num: usize) ?[*]u8 {
-    if (dst == null or src == null)
-        @panic("Invalid usage of memcpy!");
-    std.mem.copy(u8, dst.?[0..num], src.?[0..num]);
-    return dst;
-}
-
-export fn memset(ptr: ?[*]u8, value: c_int, num: usize) ?[*]u8 {
-    if (ptr == null)
-        @panic("Invalid usage of memset!");
-    // FIXME: the optimizer replaces this with a memset call which leads to a stack overflow.
-    // std.mem.set(u8, ptr.?[0..num], @intCast(u8, value));
-    for (ptr.?[0..num]) |*d|
-        d.* = @as(u8, @intCast(value));
-    return ptr;
 }
 
 export fn strlen(s: ?[*:0]const u8) usize {

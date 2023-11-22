@@ -105,7 +105,7 @@ pub fn draw(demo: Demo, vg: nvg, mx: f32, my: f32, width: f32, height: f32, t: f
 
     // Widgets
     drawWindow(vg, "Widgets `n Stuff", 50, 50, 300, 400);
-    var x: f32 = 60;
+    const x: f32 = 60;
     var y: f32 = 95;
     drawSearchBox(vg, "Search", x, y, 280, 25);
     y += 40;
@@ -477,12 +477,12 @@ fn drawEyes(vg: nvg, x: f32, y: f32, w: f32, h: f32, mx: f32, my: f32, t: f32) v
 }
 
 fn drawParagraph(vg: nvg, x_arg: f32, y_arg: f32, width: f32, height: f32, mx: f32, my: f32) void {
-    var x = x_arg;
+    const x = x_arg;
     var y = y_arg;
     _ = height;
     var rows: [3]nvg.TextRow = undefined;
     var glyphs: [100]nvg.GlyphPosition = undefined;
-    var text = "This is longer chunk of text.\n  \n  Would have used lorem ipsum but she    was busy jumping over the lazy dog with the fox and all the men who came to the aid of the party.🎉";
+    const text = "This is longer chunk of text.\n  \n  Would have used lorem ipsum but she    was busy jumping over the lazy dog with the fox and all the men who came to the aid of the party.🎉";
     var start: []const u8 = undefined;
     var lnum: i32 = 0;
     var px: f32 = undefined;
