@@ -562,9 +562,9 @@ pub fn transformPremultiply(dst: *[6]f32, src: *const [6]f32) void {
     const t = dst;
     const s = src;
     var tmp: [6]f32 = undefined;
-    std.mem.copy(f32, &tmp, s);
+    @memcpy(&tmp, s);
     transformMultiply(&tmp, t);
-    std.mem.copy(f32, t, &tmp);
+    @memcpy(t, &tmp);
 }
 
 // Sets the destination to inverse of specified transform.

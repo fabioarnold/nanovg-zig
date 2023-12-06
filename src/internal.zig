@@ -228,7 +228,7 @@ pub const Context = struct {
 
     pub fn currentTransform(ctx: *Context, xform: *[6]f32) void {
         const state = ctx.getState();
-        std.mem.copy(f32, xform, &state.xform);
+        @memcpy(xform, &state.xform);
     }
 
     pub fn strokeColor(ctx: *Context, color: Color) void {
