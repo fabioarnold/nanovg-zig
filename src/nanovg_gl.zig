@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const use_webgl = builtin.cpu.arch.isWasm();
-const gl = if (use_webgl)
+pub const gl = if (use_webgl)
     @import("web/webgl.zig")
 else
     @cImport({
@@ -226,11 +226,79 @@ const Shader = struct {
     }
 };
 
+pub const Framebuffer = struct {
+    fbo: gl.GLuint,
+    rbo: gl.GLuint,
+    texture: gl.GLuint,
+    image: nvg.Image,
+
+    pub fn create(vg: nvg, w: u32, h: u32, flags: nvg.ImageFlags) Framebuffer {
+        var defaultFBO: gl.GLint = undefined;
+        var defaultRBO: gl.GLint = undefined;
+        var fb: Framebuffer = undefined;
+
+        gl.glGetIntegerv(gl.GL_FRAMEBUFFER_BINDING, &defaultFBO);
+        gl.glGetIntegerv(gl.GL_RENDERBUFFER_BINDING, &defaultRBO);
+        defer {
+            gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, @intCast(defaultFBO));
+            gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, @intCast(defaultRBO));
+        }
+
+        var image_flags = flags;
+        image_flags.flip_y = true;
+        image_flags.premultiplied = true;
+        fb.image = vg.createImageRGBA(w, h, image_flags, null);
+
+        const gl_ctx: *GLContext = @alignCast(@ptrCast(vg.ctx.params.user_ptr));
+        fb.texture = gl_ctx.findTexture(fb.image.handle).?.tex;
+
+        // frame buffer object
+        gl.glGenFramebuffers(1, &fb.fbo);
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, fb.fbo);
+
+        // render buffer object
+        gl.glGenRenderbuffers(1, &fb.rbo);
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, fb.rbo);
+        gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_STENCIL_INDEX8, @intCast(w), @intCast(h));
+
+        // combine all
+        gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, fb.texture, 0);
+        gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_STENCIL_ATTACHMENT, gl.GL_RENDERBUFFER, fb.rbo);
+
+        if (gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER) != gl.GL_FRAMEBUFFER_COMPLETE) {
+            logger.err("FBO incomplete", .{});
+        }
+
+        return fb;
+    }
+
+    pub fn bind(fb: Framebuffer) void {
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, fb.fbo);
+    }
+
+    pub fn unbind() void {
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0);
+    }
+
+    pub fn delete(fb: *Framebuffer, vg: nvg) void {
+        if (fb.fbo != 0)
+            gl.glDeleteFramebuffers(1, &fb.fbo);
+        if (fb.rbo != 0)
+            gl.glDeleteRenderbuffers(1, &fb.rbo);
+        if (fb.image.handle >= 0)
+            vg.deleteImage(fb.image);
+        fb.fbo = 0;
+        fb.rbo = 0;
+        fb.texture = 0;
+        fb.image.handle = -1;
+    }
+};
+
 const Texture = struct {
     id: i32,
     tex: gl.GLuint,
-    width: i32,
-    height: i32,
+    width: u32,
+    height: u32,
     tex_type: internal.TextureType,
     flags: nvg.ImageFlags,
 };
@@ -549,7 +617,7 @@ fn renderCreate(uptr: *anyopaque) !void {
     // ctx.dummyTex = glnvg__renderCreateTexture(NVG_TEXTURE_ALPHA, 1, 1, 0, NULL);
 }
 
-fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32, h: i32, flags: nvg.ImageFlags, data: ?[*]const u8) !i32 {
+fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: u32, h: u32, flags: nvg.ImageFlags, data: ?[]const u8) !i32 {
     const ctx = GLContext.castPtr(uptr);
     var tex: *Texture = try ctx.allocTexture();
 
@@ -567,14 +635,15 @@ fn renderCreateTexture(uptr: *anyopaque, tex_type: internal.TextureType, w: i32,
         }
     }
 
+    const data_ptr = if (data) |d| d.ptr else null;
     switch (tex_type) {
         .none => {},
         .alpha => {
             gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1);
-            gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_LUMINANCE, w, h, 0, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data);
+            gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_LUMINANCE, @intCast(w), @intCast(h), 0, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data_ptr);
             gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 4);
         },
-        .rgba => gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, w, h, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data),
+        .rgba => gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, @intCast(w), @intCast(h), 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data_ptr),
     }
 
     if (flags.generate_mipmaps) {
@@ -608,7 +677,7 @@ fn renderDeleteTexture(uptr: *anyopaque, image: i32) void {
     tex.* = std.mem.zeroes(Texture);
 }
 
-fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: i32, y: i32, w_arg: i32, h: i32, data_arg: ?[*]const u8) i32 {
+fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: u32, y: u32, w_arg: u32, h: u32, data_arg: ?[]const u8) i32 {
     _ = x_arg;
     _ = w_arg;
     const ctx = GLContext.castPtr(uptr);
@@ -616,7 +685,7 @@ fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: i32, y: i32, w_arg: 
 
     // No support for all of skip, need to update a whole row at a time.
     const color_size: u32 = if (tex.tex_type == .rgba) 4 else 1;
-    const y0: u32 = @intCast(y * tex.width);
+    const y0: u32 = y * tex.width;
     const data = &data_arg.?[y0 * color_size];
     const x = 0;
     const w = tex.width;
@@ -626,17 +695,17 @@ fn renderUpdateTexture(uptr: *anyopaque, image: i32, x_arg: i32, y: i32, w_arg: 
         .none => {},
         .alpha => {
             gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1);
-            gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, y, w, h, gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data);
+            gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, @intCast(y), @intCast(w), @intCast(h), gl.GL_LUMINANCE, gl.GL_UNSIGNED_BYTE, data);
             gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 4);
         },
-        .rgba => gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, y, w, h, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data),
+        .rgba => gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, x, @intCast(y), @intCast(w), @intCast(h), gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data),
     }
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0);
 
     return 1;
 }
 
-fn renderGetTextureSize(uptr: *anyopaque, image: i32, w: *i32, h: *i32) i32 {
+fn renderGetTextureSize(uptr: *anyopaque, image: i32, w: *u32, h: *u32) i32 {
     const ctx = GLContext.castPtr(uptr);
     const tex = ctx.findTexture(image) orelse return 0;
     w.* = tex.width;

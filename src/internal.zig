@@ -79,7 +79,7 @@ pub const Context = struct {
         ctx.fs = c.fonsCreateInternal(&font_params) orelse return error.CreateFontstashFailed;
 
         // Create font texture
-        ctx.font_images[0] = try ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, font_params.width, font_params.height, .{}, null);
+        ctx.font_images[0] = try ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, @intCast(font_params.width), @intCast(font_params.height), .{}, null);
         ctx.font_image_idx = 0;
 
         return ctx;
@@ -266,8 +266,8 @@ pub const Context = struct {
         return .{ .handle = 0 };
     }
 
-    pub fn createImageRGBA(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
-        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(w), @intCast(h), flags, data.ptr) catch 0 };
+    pub fn createImageRGBA(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: ?[]const u8) Image {
+        return Image{ .handle = ctx.params.renderCreateTexture(ctx.params.user_ptr, .rgba, @intCast(w), @intCast(h), flags, data) catch 0 };
     }
 
     pub fn createImageAlpha(ctx: *Context, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
@@ -307,15 +307,15 @@ pub const Context = struct {
             // delete images that are smaller than current one
             if (font_image == 0)
                 return;
-            var iw: i32 = undefined;
-            var ih: i32 = undefined;
+            var iw: u32 = undefined;
+            var ih: u32 = undefined;
             ctx.imageSize(font_image, &iw, &ih);
             var i: u32 = 0;
             var j: u32 = 0;
             while (i < ctx.font_image_idx) : (i += 1) {
                 if (ctx.font_images[i] != 0) {
-                    var nw: i32 = undefined;
-                    var nh: i32 = undefined;
+                    var nw: u32 = undefined;
+                    var nh: u32 = undefined;
                     const image = ctx.font_images[i];
                     ctx.font_images[i] = 0;
                     ctx.imageSize(image, &nw, &nh);
@@ -968,7 +968,7 @@ pub const Context = struct {
         ctx.ellipse(cx, cy, r, r);
     }
 
-    pub fn imageSize(ctx: *Context, image: i32, w: *i32, h: *i32) void {
+    pub fn imageSize(ctx: *Context, image: i32, w: *u32, h: *u32) void {
         _ = ctx.params.renderGetTextureSize(ctx.params.user_ptr, image, w, h);
     }
 
@@ -1254,27 +1254,28 @@ pub const Context = struct {
     }
 
     fn flushTextTexture(ctx: Context) void {
-        var dirty: [4]i32 = undefined;
+        var dirty: [4]c_int = undefined;
 
         if (c.fonsValidateTexture(ctx.fs, &dirty[0]) != 0) {
             const fontImage = ctx.font_images[ctx.font_image_idx];
             // Update texture
             if (fontImage != 0) {
-                var iw: i32 = undefined;
-                var ih: i32 = undefined;
+                var iw: c_int = undefined;
+                var ih: c_int = undefined;
                 const data = c.fonsGetTextureData(ctx.fs, &iw, &ih);
-                const x = dirty[0];
-                const y = dirty[1];
-                const w = dirty[2] - dirty[0];
-                const h = dirty[3] - dirty[1];
-                _ = ctx.params.renderUpdateTexture(ctx.params.user_ptr, fontImage, x, y, w, h, data);
+                const len: usize = @intCast(iw * ih);
+                const x: u32 = @intCast(dirty[0]);
+                const y: u32 = @intCast(dirty[1]);
+                const w: u32 = @intCast(dirty[2] - dirty[0]);
+                const h: u32 = @intCast(dirty[3] - dirty[1]);
+                _ = ctx.params.renderUpdateTexture(ctx.params.user_ptr, fontImage, x, y, w, h, data[0..len]);
             }
         }
     }
 
     fn allocTextAtlas(ctx: *Context) bool {
-        var iw: i32 = undefined;
-        var ih: i32 = undefined;
+        var iw: u32 = undefined;
+        var ih: u32 = undefined;
         ctx.flushTextTexture();
         if (ctx.font_image_idx + 1 >= ctx.font_images.len)
             return false;
@@ -1295,7 +1296,7 @@ pub const Context = struct {
             ctx.font_images[ctx.font_image_idx + 1] = ctx.params.renderCreateTexture(ctx.params.user_ptr, .alpha, iw, ih, .{}, null) catch return false;
         }
         ctx.font_image_idx += 1;
-        _ = c.fonsResetAtlas(ctx.fs, iw, ih);
+        _ = c.fonsResetAtlas(ctx.fs, @intCast(iw), @intCast(ih));
         return true;
     }
 
@@ -1844,10 +1845,10 @@ pub const Params = struct {
     user_ptr: *anyopaque,
     edge_antialias: bool,
     renderCreate: *const fn (uptr: *anyopaque) anyerror!void,
-    renderCreateTexture: *const fn (uptr: *anyopaque, tex_type: TextureType, w: i32, h: i32, image_flags: ImageFlags, data: ?[*]const u8) anyerror!i32,
+    renderCreateTexture: *const fn (uptr: *anyopaque, tex_type: TextureType, w: u32, h: u32, image_flags: ImageFlags, data: ?[]const u8) anyerror!i32,
     renderDeleteTexture: *const fn (uptr: *anyopaque, image: i32) void,
-    renderUpdateTexture: *const fn (uptr: *anyopaque, image: i32, x: i32, y: i32, w: i32, h: i32, data: ?[*]const u8) i32,
-    renderGetTextureSize: *const fn (uptr: *anyopaque, image: i32, w: *i32, h: *i32) i32,
+    renderUpdateTexture: *const fn (uptr: *anyopaque, image: i32, x: u32, y: u32, w: u32, h: u32, data: ?[]const u8) i32,
+    renderGetTextureSize: *const fn (uptr: *anyopaque, image: i32, w: *u32, h: *u32) i32,
     renderViewport: *const fn (uptr: *anyopaque, width: f32, height: f32, device_pixel_ratio: f32) void,
     renderCancel: *const fn (uptr: *anyopaque) void,
     renderFlush: *const fn (uptr: *anyopaque) void,

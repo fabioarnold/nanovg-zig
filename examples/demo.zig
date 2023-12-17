@@ -732,8 +732,8 @@ fn drawThumbnails(vg: nvg, x: f32, y: f32, w: f32, h: f32, images: []const nvg.I
         var ty = y + 10;
         tx += @as(f32, @floatFromInt(i % 2)) * (thumb + 10.0);
         ty += @as(f32, @floatFromInt(i / 2)) * (thumb + 10.0);
-        var imgw: i32 = undefined;
-        var imgh: i32 = undefined;
+        var imgw: u32 = undefined;
+        var imgh: u32 = undefined;
         vg.imageSize(image, &imgw, &imgh);
         var ix: f32 = undefined;
         var iy: f32 = undefined;

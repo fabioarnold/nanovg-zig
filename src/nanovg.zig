@@ -623,23 +623,23 @@ pub fn createImageMem(self: Self, data: []const u8, flags: ImageFlags) Image {
 
 // Creates image from specified image data.
 // Returns handle to the image.
-pub fn createImageRGBA(self: Self, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
+pub fn createImageRGBA(self: Self, w: u32, h: u32, flags: ImageFlags, data: ?[]const u8) Image {
     return self.ctx.createImageRGBA(w, h, flags, data);
 }
 
 // Creates alpha image from specified image data.
 // Returns handle to the image.
-pub fn createImageAlpha(self: Self, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
+pub fn createImageAlpha(self: Self, w: u32, h: u32, flags: ImageFlags, data: ?[]const u8) Image {
     return self.ctx.createImageAlpha(w, h, flags, data);
 }
 
 // Updates image data specified by image handle.
-pub fn updateImage(self: Self, image: Image, data: []const u8) void {
+pub fn updateImage(self: Self, image: Image, data: ?[]const u8) void {
     self.ctx.updateImage(image, data);
 }
 
 // Returns the dimensions of a created image.
-pub fn imageSize(self: Self, image: Image, w: *i32, h: *i32) void {
+pub fn imageSize(self: Self, image: Image, w: *u32, h: *u32) void {
     self.ctx.imageSize(image.handle, w, h);
 }
 
