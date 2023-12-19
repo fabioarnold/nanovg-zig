@@ -28,6 +28,18 @@ pub const Paint = struct {
     colormap: Image,
 };
 
+pub const Path = struct {
+    const Verb = enum {
+        move,
+        line,
+        quad,
+        bezier,
+        close,
+    };
+    verbs: []const Verb,
+    points: []const f32,
+};
+
 pub const Winding = enum(u2) {
     none = 0,
     ccw = 1, // Winding for solid shapes
@@ -739,6 +751,11 @@ pub fn resetScissor(self: Self) void {
 // Clears the current path and sub-paths.
 pub fn beginPath(self: Self) void {
     self.ctx.beginPath();
+}
+
+// Adds a path consisting of multiple verbs and corresponding point data.
+pub fn addPath(self: Self, path: Path) void {
+    self.ctx.addPath(path);
 }
 
 // Starts new sub-path with specified point as first point.

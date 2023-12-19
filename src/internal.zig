@@ -762,6 +762,43 @@ pub const Context = struct {
         }
     }
 
+    pub fn addPath(ctx: *Context, path: nvg.Path) void {
+        var i: usize = 0;
+        for (path.verbs) |verb| {
+            switch (verb) {
+                .move => {
+                    ctx.moveTo(path.points[i + 0], path.points[i + 1]);
+                    i += 2;
+                },
+                .line => {
+                    ctx.lineTo(path.points[i + 0], path.points[i + 1]);
+                    i += 2;
+                },
+                .quad => {
+                    ctx.quadTo(
+                        path.points[i + 0],
+                        path.points[i + 1],
+                        path.points[i + 2],
+                        path.points[i + 3],
+                    );
+                    i += 4;
+                },
+                .bezier => {
+                    ctx.bezierTo(
+                        path.points[i + 0],
+                        path.points[i + 1],
+                        path.points[i + 2],
+                        path.points[i + 3],
+                        path.points[i + 4],
+                        path.points[i + 5],
+                    );
+                    i += 6;
+                },
+                .close => ctx.closePath(),
+            }
+        }
+    }
+
     pub fn beginPath(ctx: *Context) void {
         ctx.commands.clearRetainingCapacity();
         ctx.cache.clear();
