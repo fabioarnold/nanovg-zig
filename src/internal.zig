@@ -370,6 +370,7 @@ pub const Context = struct {
         }
 
         ctx.commands.appendSliceAssumeCapacity(&vals);
+        ctx.cache.clear();
     }
 
     fn tesselateBezier(ctx: *Context, x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32, level: u8, cornerType: PointFlags) void {
@@ -801,7 +802,6 @@ pub const Context = struct {
 
     pub fn beginPath(ctx: *Context) void {
         ctx.commands.clearRetainingCapacity();
-        ctx.cache.clear();
     }
 
     pub fn moveTo(ctx: *Context, x: f32, y: f32) void {
