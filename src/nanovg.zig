@@ -365,11 +365,6 @@ pub fn reset(self: Self) void {
 //
 // Current render style can be saved and restored using nvgSave() and nvgRestore().
 
-// Sets whether to draw antialias for nvgStroke() and nvgFill(). It's enabled by default.
-pub fn shapeAntiAlias(self: Self, enabled: bool) void {
-    self.ctx.shapeAntiAlias(enabled);
-}
-
 // // Sets current stroke style to a solid color.
 pub fn strokeColor(self: Self, color: Color) void {
     self.ctx.strokeColor(color);
@@ -822,7 +817,12 @@ pub fn ellipse(self: Self, cx: f32, cy: f32, rx: f32, ry: f32) void {
 
 // Creates new circle shaped sub-path.
 pub fn circle(self: Self, cx: f32, cy: f32, r: f32) void {
-    self.ctx.circle(cx, cy, r);
+    self.ctx.ellipse(cx, cy, r, r);
+}
+
+// Use all previously recorded paths since beginPath as clip path.
+pub fn clip(self: Self) void {
+    self.ctx.clip();
 }
 
 // Fills the current path with current fill style.

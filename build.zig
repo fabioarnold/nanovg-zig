@@ -87,5 +87,6 @@ pub fn build(b: *std.Build) !void {
     } else {
         try installDemo(b, target, optimize, "demo_glfw", "examples/example_glfw.zig", nanovg, lib);
         try installDemo(b, target, optimize, "demo_fbo", "examples/example_fbo.zig", nanovg, lib);
+        try installDemo(b, target, optimize, "demo_clip", "examples/example_clip.zig", nanovg, lib);
     }
 }

@@ -32,7 +32,6 @@ pub const Context = struct {
     cache: PathCache,
     tess_tol: f32,
     dist_tol: f32,
-    fringe_width: f32,
     device_px_ratio: f32 = 1,
     fs: ?*c.FONScontext = null,
     font_images: [4]i32 = [_]i32{0} ** 4,
@@ -52,7 +51,6 @@ pub const Context = struct {
             .cache = try PathCache.init(allocator),
             .tess_tol = undefined,
             .dist_tol = undefined,
-            .fringe_width = undefined,
             .device_px_ratio = undefined,
         };
         errdefer ctx.deinit();
@@ -109,7 +107,6 @@ pub const Context = struct {
     fn setDevicePixelRatio(ctx: *Context, ratio: f32) void {
         ctx.tess_tol = 0.25 / ratio;
         ctx.dist_tol = 0.01 / ratio;
-        ctx.fringe_width = 1 / ratio;
         ctx.device_px_ratio = ratio;
     }
 
@@ -136,7 +133,6 @@ pub const Context = struct {
         setPaintColor(&state.stroke, nvg.rgbaf(0, 0, 0, 1));
 
         state.composite_operation = nvg.CompositeOperationState.initOperation(.source_over);
-        state.shape_antialias = true;
         state.stroke_width = 1;
         state.miter_limit = 10;
         state.line_cap = .butt;
@@ -335,7 +331,7 @@ pub const Context = struct {
         }
     }
 
-    pub fn appendCommands(ctx: *Context, vals_src: anytype) void {
+    fn appendCommands(ctx: *Context, vals_src: anytype) void {
         var vals: [vals_src.len]f32 = vals_src;
         const state = ctx.getState();
 
@@ -364,12 +360,13 @@ pub const Context = struct {
                     transformPoint(&vals[i + 5], &vals[i + 6], state.xform, vals[i + 5], vals[i + 6]);
                     i += 7;
                 },
-                .close => i += 1,
                 .winding => i += 2,
+                .close, .clip => i += 1,
             }
         }
 
         ctx.commands.appendSliceAssumeCapacity(&vals);
+        ctx.cache.clear();
     }
 
     fn tesselateBezier(ctx: *Context, x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32, level: u8, cornerType: PointFlags) void {
@@ -442,6 +439,10 @@ pub const Context = struct {
                     cache.pathWinding(@enumFromInt(@as(u2, @intFromFloat(ctx.commands.items[i + 1]))));
                     i += 2;
                 },
+                .clip => {
+                    cache.clip();
+                    i += 1;
+                },
             }
         }
 
@@ -488,10 +489,8 @@ pub const Context = struct {
         }
     }
 
-    fn calculateJoins(ctx: *Context, w: f32, line_join: nvg.LineJoin, miter_limit: f32) void {
+    fn calculateJoins(ctx: *Context, line_join: nvg.LineJoin, miter_limit: f32) void {
         const cache = &ctx.cache;
-        var iw: f32 = 0.0;
-        if (w > 0.0) iw = 1.0 / w;
 
         // Calculate which joins needs extra vertices to append, and gather vertex count.
         for (cache.paths.items) |*path| {
@@ -529,7 +528,7 @@ pub const Context = struct {
                 }
 
                 // Calculate if we should use bevel or miter for inner join.
-                const limit = @max(1.01, @min(p0.len, p1.len) * iw);
+                const limit = 1.01;
                 if ((dmr2 * limit * limit) < 1.0)
                     p1.flags.innerbevel = true;
 
@@ -548,126 +547,45 @@ pub const Context = struct {
         }
     }
 
-    fn expandFill(ctx: *Context, w: f32, line_join: nvg.LineJoin, miter_limit: f32) !void {
+    fn expandFill(ctx: *Context, line_join: nvg.LineJoin, miter_limit: f32) !void {
         const cache = &ctx.cache;
-        const aa = ctx.fringe_width;
-        const fringe = w > 0.0;
 
-        ctx.calculateJoins(w, line_join, miter_limit);
+        ctx.calculateJoins(line_join, miter_limit);
 
         // Calculate max vertex usage.
         var cverts: u32 = 0;
         for (cache.paths.items) |path| {
             cverts += path.count + path.nbevel + 1;
-            if (fringe)
-                cverts += (path.count + path.nbevel * 5 + 1) * 2; // plus one for loop
         }
 
         var verts = try cache.allocTempVerts(cverts);
-
-        const convex = cache.paths.items.len == 1 and cache.paths.items[0].convex;
 
         for (cache.paths.items) |*path| {
             if (path.count == 0) continue;
             const pts = cache.points.items[path.first..][0..path.count];
 
             // Calculate shape vertices.
-            const woff = 0.5 * aa;
             var dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
             dst.clearRetainingCapacity();
 
-            if (fringe) {
-                // Looping
-                var p0 = &pts[pts.len - 1];
-                for (pts) |*p1| {
-                    defer p0 = p1;
-                    if (p1.flags.bevel) {
-                        const dlx0 = p0.dy;
-                        const dly0 = -p0.dx;
-                        const dlx1 = p1.dy;
-                        const dly1 = -p1.dx;
-                        if (p1.flags.left) {
-                            const lx = p1.x + p1.dmx * woff;
-                            const ly = p1.y + p1.dmy * woff;
-                            dst.addOneAssumeCapacity().set(lx, ly, 0.5, 1);
-                        } else {
-                            const lx0 = p1.x + dlx0 * woff;
-                            const ly0 = p1.y + dly0 * woff;
-                            const lx1 = p1.x + dlx1 * woff;
-                            const ly1 = p1.y + dly1 * woff;
-                            dst.addOneAssumeCapacity().set(lx0, ly0, 0.5, 1);
-                            dst.addOneAssumeCapacity().set(lx1, ly1, 0.5, 1);
-                        }
-                    } else {
-                        dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * woff), p1.y + (p1.dmy * woff), 0.5, 1);
-                    }
-                }
-            } else {
-                for (pts) |p| {
-                    dst.addOneAssumeCapacity().set(p.x, p.y, 0.5, 1);
-                }
+            for (pts) |p| {
+                dst.addOneAssumeCapacity().set(p.x, p.y, 0.5, 1);
             }
 
             path.fill = dst.items;
+            path.stroke = &.{};
             verts = verts[dst.items.len..verts.len];
-
-            // Calculate fringe
-            if (fringe) {
-                var lw = w + woff;
-                const rw = w - woff;
-                var lu: f32 = 0;
-                const ru: f32 = 1;
-                dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
-                dst.clearRetainingCapacity();
-
-                // Create only half a fringe for convex shapes so that
-                // the shape can be rendered without stenciling.
-                if (convex) {
-                    lw = woff; // This should generate the same vertex as fill inset above.
-                    lu = 0.5; // Set outline fade at middle.
-                }
-
-                // Looping
-                var p0 = &pts[pts.len - 1];
-                for (pts) |*p1| {
-                    defer p0 = p1;
-                    if (p1.flags.bevel or p1.flags.innerbevel) {
-                        bevelJoin(&dst, p0.*, p1.*, lw, rw, lu, ru, ctx.fringe_width);
-                    } else {
-                        dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * lw), p1.y + (p1.dmy * lw), lu, 1);
-                        dst.addOneAssumeCapacity().set(p1.x - (p1.dmx * rw), p1.y - (p1.dmy * rw), ru, 1);
-                    }
-                }
-
-                // Loop it
-                dst.addOneAssumeCapacity().set(verts[0].x, verts[0].y, lu, 1);
-                dst.addOneAssumeCapacity().set(verts[1].x, verts[1].y, ru, 1);
-
-                path.stroke = dst.items;
-                verts = verts[dst.items.len..verts.len];
-            } else {
-                path.stroke = &.{};
-            }
         }
     }
 
-    pub fn expandStroke(ctx: *Context, width: f32, fringe: f32, line_cap: nvg.LineCap, line_join: nvg.LineJoin, miter_limit: f32) !void {
+    pub fn expandStroke(ctx: *Context, width: f32, line_cap: nvg.LineCap, line_join: nvg.LineJoin, miter_limit: f32) !void {
         const cache = &ctx.cache;
-        const aa = fringe;
-        var @"u0": f32 = 0;
-        var @"u1": f32 = 1;
-        var w = width;
+        const @"u0": f32 = 0.5;
+        const @"u1": f32 = 0.5;
+        const w = width;
         const ncap = curveDivs(w, std.math.pi, ctx.tess_tol); // Calculate divisions per half circle.
 
-        w += aa * 0.5;
-
-        // Disable the gradient used for antialiasing when antialiasing is not used.
-        if (aa == 0) {
-            @"u0" = 0.5;
-            @"u1" = 0.5;
-        }
-
-        ctx.calculateJoins(w, line_join, miter_limit);
+        ctx.calculateJoins(line_join, miter_limit);
 
         // Calculate max vertex usage.
         var cverts: u32 = 0;
@@ -694,70 +612,78 @@ pub const Context = struct {
             if (path.count == 0) continue;
             const pts = cache.points.items[path.first..][0..path.count];
 
-            path.fill = &.{};
-
             // Calculate fringe or stroke
             const loop = path.closed;
             var dst = ArrayList(Vertex).fromOwnedSlice(ctx.allocator, verts);
             dst.clearRetainingCapacity();
 
-            // Looping
-            var p0 = &pts[path.count - 1];
-            var p1 = &pts[0];
-            var s: u32 = 0;
-            var e = path.count;
-            if (!loop) {
-                p0 = &pts[0];
-                p1 = &pts[1];
-                s = 1;
-                e = path.count - 1;
-
-                // Add cap
-                var dx = p1.x - p0.x;
-                var dy = p1.y - p0.y;
-                _ = normalize(&dx, &dy);
-                switch (line_cap) {
-                    .butt => buttCapStart(&dst, p0.*, dx, dy, w, -aa * 0.5, aa, @"u0", @"u1"),
-                    .square => buttCapStart(&dst, p0.*, dx, dy, w, w - aa, aa, @"u0", @"u1"),
-                    .round => roundCapStart(&dst, p0.*, dx, dy, w, ncap, aa, @"u0", @"u1"),
+            if (path.clip) {
+                for (pts) |p| {
+                    dst.addOneAssumeCapacity().set(p.x, p.y, 0.5, 1);
                 }
-            }
 
-            var j: u32 = s;
-            while (j < e) : (j += 1) {
-                p1 = &pts[j];
-                defer p0 = p1;
-                if (p1.flags.bevel or p1.flags.innerbevel) {
-                    if (line_join == .round) {
-                        roundJoin(&dst, p0.*, p1.*, w, w, @"u0", @"u1", ncap, aa);
-                    } else {
-                        bevelJoin(&dst, p0.*, p1.*, w, w, @"u0", @"u1", aa);
-                    }
-                } else {
-                    dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), @"u0", 1);
-                    dst.addOneAssumeCapacity().set(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), @"u1", 1);
-                }
-            }
-
-            if (loop) {
-                // Loop it
-                dst.addOneAssumeCapacity().set(verts[0].x, verts[0].y, @"u0", 1);
-                dst.addOneAssumeCapacity().set(verts[1].x, verts[1].y, @"u1", 1);
+                path.fill = dst.items;
+                path.stroke = &.{};
             } else {
-                p1 = &pts[j];
-                // Add cap
-                var dx = p1.x - p0.x;
-                var dy = p1.y - p0.y;
-                _ = normalize(&dx, &dy);
+                // Looping
+                var p0 = &pts[path.count - 1];
+                var p1 = &pts[0];
+                var s: u32 = 0;
+                var e = path.count;
+                if (!loop) {
+                    p0 = &pts[0];
+                    p1 = &pts[1];
+                    s = 1;
+                    e = path.count - 1;
 
-                switch (line_cap) {
-                    .butt => buttCapEnd(&dst, p1.*, dx, dy, w, -aa * 0.5, aa, @"u0", @"u1"),
-                    .square => buttCapEnd(&dst, p1.*, dx, dy, w, w - aa, aa, @"u0", @"u1"),
-                    .round => roundCapEnd(&dst, p1.*, dx, dy, w, ncap, aa, @"u0", @"u1"),
+                    // Add cap
+                    var dx = p1.x - p0.x;
+                    var dy = p1.y - p0.y;
+                    _ = normalize(&dx, &dy);
+                    switch (line_cap) {
+                        .butt => buttCapStart(&dst, p0.*, dx, dy, w, 0, @"u0", @"u1"),
+                        .square => buttCapStart(&dst, p0.*, dx, dy, w, w, @"u0", @"u1"),
+                        .round => roundCapStart(&dst, p0.*, dx, dy, w, ncap, @"u0", @"u1"),
+                    }
                 }
-            }
 
-            path.stroke = dst.items;
+                var j: u32 = s;
+                while (j < e) : (j += 1) {
+                    p1 = &pts[j];
+                    defer p0 = p1;
+                    if (p1.flags.bevel or p1.flags.innerbevel) {
+                        if (line_join == .round) {
+                            roundJoin(&dst, p0.*, p1.*, w, w, @"u0", @"u1", ncap);
+                        } else {
+                            bevelJoin(&dst, p0.*, p1.*, w, w, @"u0", @"u1");
+                        }
+                    } else {
+                        dst.addOneAssumeCapacity().set(p1.x + (p1.dmx * w), p1.y + (p1.dmy * w), @"u0", 1);
+                        dst.addOneAssumeCapacity().set(p1.x - (p1.dmx * w), p1.y - (p1.dmy * w), @"u1", 1);
+                    }
+                }
+
+                if (loop) {
+                    // Loop it
+                    dst.addOneAssumeCapacity().set(verts[0].x, verts[0].y, @"u0", 1);
+                    dst.addOneAssumeCapacity().set(verts[1].x, verts[1].y, @"u1", 1);
+                } else {
+                    p1 = &pts[j];
+                    // Add cap
+                    var dx = p1.x - p0.x;
+                    var dy = p1.y - p0.y;
+                    _ = normalize(&dx, &dy);
+
+                    switch (line_cap) {
+                        .butt => buttCapEnd(&dst, p1.*, dx, dy, w, 0, @"u0", @"u1"),
+                        .square => buttCapEnd(&dst, p1.*, dx, dy, w, w, @"u0", @"u1"),
+                        .round => roundCapEnd(&dst, p1.*, dx, dy, w, ncap, @"u0", @"u1"),
+                    }
+                }
+
+                path.fill = &.{};
+                path.stroke = dst.items;
+            }
             verts = verts[dst.items.len..verts.len];
         }
     }
@@ -801,7 +727,6 @@ pub const Context = struct {
 
     pub fn beginPath(ctx: *Context) void {
         ctx.commands.clearRetainingCapacity();
-        ctx.cache.clear();
     }
 
     pub fn moveTo(ctx: *Context, x: f32, y: f32) void {
@@ -1001,8 +926,8 @@ pub const Context = struct {
         // zig fmt: on
     }
 
-    pub fn circle(ctx: *Context, cx: f32, cy: f32, r: f32) void {
-        ctx.ellipse(cx, cy, r, r);
+    pub fn clip(ctx: *Context) void {
+        ctx.appendCommands(.{Command.clip.toValue()});
     }
 
     pub fn imageSize(ctx: *Context, image: i32, w: *u32, h: *u32) void {
@@ -1199,11 +1124,18 @@ pub const Context = struct {
         fill_paint.outer_color.a *= state.alpha;
 
         ctx.flattenPaths();
+        if (ctx.cache.paths.items.len == 0) return;
 
-        const fringe = if (ctx.params.edge_antialias and state.shape_antialias) ctx.fringe_width else 0;
-        ctx.expandFill(fringe, .miter, 2.4) catch return;
+        ctx.expandFill(.miter, 2.4) catch return;
 
-        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths.items);
+        if (ctx.cache.paths.items[0].clip) {
+            // Find position where clip paths end
+            var i: usize = 0;
+            while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
+            ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
+        } else {
+            ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        }
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
@@ -1216,28 +1148,26 @@ pub const Context = struct {
     pub fn stroke(ctx: *Context) void {
         const state = ctx.getState();
         const s = getAverageScale(state.xform);
-        var stroke_width = std.math.clamp(state.stroke_width * s, 0, 200);
+        const stroke_width = std.math.clamp(state.stroke_width * s, 0, 200);
         var stroke_paint = state.stroke;
-
-        if (stroke_width < ctx.fringe_width) {
-            // If the stroke width is less than pixel size, use alpha to emulate coverage.
-            // Since coverage is area, scale by alpha*alpha.
-            const alpha = std.math.clamp(stroke_width / ctx.fringe_width, 0, 1);
-            stroke_paint.inner_color.a *= alpha * alpha;
-            stroke_paint.outer_color.a *= alpha * alpha;
-            stroke_width = ctx.fringe_width;
-        }
 
         // Apply global alpha
         stroke_paint.inner_color.a *= state.alpha;
         stroke_paint.outer_color.a *= state.alpha;
 
         ctx.flattenPaths();
+        if (ctx.cache.paths.items.len == 0) return;
 
-        const fringe = if (ctx.params.edge_antialias and state.shape_antialias) ctx.fringe_width else 0;
-        ctx.expandStroke(stroke_width * 0.5, fringe, state.line_cap, state.line_join, state.miter_limit) catch return;
+        ctx.expandStroke(stroke_width * 0.5, state.line_cap, state.line_join, state.miter_limit) catch return;
 
-        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.fringe_width, stroke_width, ctx.cache.paths.items);
+        if (ctx.cache.paths.items[0].clip) {
+            // Find position where clip paths end
+            var i: usize = 0;
+            while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
+            ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
+        } else {
+            ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        }
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
@@ -1348,7 +1278,7 @@ pub const Context = struct {
         paint.inner_color.a *= state.alpha;
         paint.outer_color.a *= state.alpha;
 
-        ctx.params.renderTriangles(ctx.params.user_ptr, &paint, state.composite_operation, &state.scissor, ctx.fringe_width, verts);
+        ctx.params.renderTriangles(ctx.params.user_ptr, &paint, state.composite_operation, &state.scissor, verts);
 
         ctx.draw_call_count += 1;
         ctx.text_tri_count += @as(u32, @intCast(verts.len)) / 3;
@@ -1825,6 +1755,7 @@ const Command = enum(i32) {
     bezier_to = 2,
     close = 3,
     winding = 4,
+    clip = 5,
 
     fn fromValue(val: f32) Command {
         return @enumFromInt(@as(i32, @intFromFloat(val)));
@@ -1875,12 +1806,12 @@ pub const Path = struct {
     fill: []Vertex,
     stroke: []Vertex,
     winding: nvg.Winding,
+    clip: bool,
     convex: bool,
 };
 
 pub const Params = struct {
     user_ptr: *anyopaque,
-    edge_antialias: bool,
     renderCreate: *const fn (uptr: *anyopaque) anyerror!void,
     renderCreateTexture: *const fn (uptr: *anyopaque, tex_type: TextureType, w: u32, h: u32, image_flags: ImageFlags, data: ?[]const u8) anyerror!i32,
     renderDeleteTexture: *const fn (uptr: *anyopaque, image: i32) void,
@@ -1889,15 +1820,14 @@ pub const Params = struct {
     renderViewport: *const fn (uptr: *anyopaque, width: f32, height: f32, device_pixel_ratio: f32) void,
     renderCancel: *const fn (uptr: *anyopaque) void,
     renderFlush: *const fn (uptr: *anyopaque) void,
-    renderFill: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, bounds: [4]f32, paths: []const Path) void,
-    renderStroke: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, stroke_width: f32, paths: []const Path) void,
-    renderTriangles: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, verts: []const Vertex) void,
+    renderFill: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, bounds: [4]f32, clip_paths: []const Path, paths: []const Path) void,
+    renderStroke: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, bounds: [4]f32, clip_paths: []const Path, paths: []const Path) void,
+    renderTriangles: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, verts: []const Vertex) void,
     renderDelete: *const fn (uptr: *anyopaque) void,
 };
 
 const State = struct {
     composite_operation: nvg.CompositeOperationState,
-    shape_antialias: bool,
     fill: Paint,
     stroke: Paint,
     stroke_width: f32,
@@ -2026,6 +1956,12 @@ const PathCache = struct {
             path.winding = winding;
         }
     }
+
+    fn clip(cache: *PathCache) void {
+        for (cache.paths.items) |*path| {
+            path.clip = true;
+        }
+    }
 };
 
 fn sign(a: f32) f32 {
@@ -2133,8 +2069,7 @@ fn chooseBevel(bevel: bool, p0: Point, p1: Point, w: f32, x0: *f32, y0: *f32, x1
     }
 }
 
-fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, ncap: u32, fringe: f32) void {
-    _ = fringe;
+fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, ncap: u32) void {
     const dlx0 = p0.dy;
     const dly0 = -p0.dx;
     const dlx1 = p1.dy;
@@ -2197,8 +2132,7 @@ fn roundJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
     }
 }
 
-fn bevelJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32, fringe: f32) void {
-    _ = fringe;
+fn bevelJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu: f32, ru: f32) void {
     const dlx0 = p0.dy;
     const dly0 = -p0.dx;
     const dlx1 = p1.dy;
@@ -2271,30 +2205,29 @@ fn bevelJoin(dst: *ArrayList(Vertex), p0: Point, p1: Point, lw: f32, rw: f32, lu
     }
 }
 
-fn buttCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, d: f32, aa: f32, @"u0": f32, @"u1": f32) void {
+fn buttCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, d: f32, @"u0": f32, @"u1": f32) void {
     const px = p.x - dx * d;
     const py = p.y - dy * d;
     const dlx = dy;
     const dly = -dx;
-    dst.addOneAssumeCapacity().set(px + dlx * w - dx * aa, py + dly * w - dy * aa, @"u0", 0);
-    dst.addOneAssumeCapacity().set(px - dlx * w - dx * aa, py - dly * w - dy * aa, @"u1", 0);
+    dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 0);
+    dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 0);
     dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 1);
     dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
 }
 
-fn buttCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, d: f32, aa: f32, @"u0": f32, @"u1": f32) void {
+fn buttCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, d: f32, @"u0": f32, @"u1": f32) void {
     const px = p.x + dx * d;
     const py = p.y + dy * d;
     const dlx = dy;
     const dly = -dx;
     dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 1);
     dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
-    dst.addOneAssumeCapacity().set(px + dlx * w + dx * aa, py + dly * w + dy * aa, @"u0", 0);
-    dst.addOneAssumeCapacity().set(px - dlx * w + dx * aa, py - dly * w + dy * aa, @"u1", 0);
+    dst.addOneAssumeCapacity().set(px + dlx * w, py + dly * w, @"u0", 0);
+    dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 0);
 }
 
-fn roundCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap: u32, aa: f32, @"u0": f32, @"u1": f32) void {
-    _ = aa;
+fn roundCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap: u32, @"u0": f32, @"u1": f32) void {
     const px = p.x;
     const py = p.y;
     const dlx = dy;
@@ -2311,8 +2244,7 @@ fn roundCapStart(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, nc
     dst.addOneAssumeCapacity().set(px - dlx * w, py - dly * w, @"u1", 1);
 }
 
-fn roundCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap: u32, aa: f32, @"u0": f32, @"u1": f32) void {
-    _ = aa;
+fn roundCapEnd(dst: *ArrayList(Vertex), p: Point, dx: f32, dy: f32, w: f32, ncap: u32, @"u0": f32, @"u1": f32) void {
     const px = p.x;
     const py = p.y;
     const dlx = dy;
