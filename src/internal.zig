@@ -335,7 +335,7 @@ pub const Context = struct {
         }
     }
 
-    pub fn appendCommands(ctx: *Context, vals_src: anytype) void {
+    fn appendCommands(ctx: *Context, vals_src: anytype) void {
         var vals: [vals_src.len]f32 = vals_src;
         const state = ctx.getState();
 
@@ -364,8 +364,8 @@ pub const Context = struct {
                     transformPoint(&vals[i + 5], &vals[i + 6], state.xform, vals[i + 5], vals[i + 6]);
                     i += 7;
                 },
-                .close => i += 1,
                 .winding => i += 2,
+                .close, .clip => i += 1,
             }
         }
 
@@ -442,6 +442,10 @@ pub const Context = struct {
                 .winding => {
                     cache.pathWinding(@enumFromInt(@as(u2, @intFromFloat(ctx.commands.items[i + 1]))));
                     i += 2;
+                },
+                .clip => {
+                    cache.clip();
+                    i += 1;
                 },
             }
         }
@@ -1001,8 +1005,8 @@ pub const Context = struct {
         // zig fmt: on
     }
 
-    pub fn circle(ctx: *Context, cx: f32, cy: f32, r: f32) void {
-        ctx.ellipse(cx, cy, r, r);
+    pub fn clip(ctx: *Context) void {
+        ctx.appendCommands(.{Command.clip.toValue()});
     }
 
     pub fn imageSize(ctx: *Context, image: i32, w: *u32, h: *u32) void {
@@ -1199,11 +1203,19 @@ pub const Context = struct {
         fill_paint.outer_color.a *= state.alpha;
 
         ctx.flattenPaths();
+        if (ctx.cache.paths.items.len == 0) return;
 
         const fringe = if (ctx.params.edge_antialias and state.shape_antialias) ctx.fringe_width else 0;
         ctx.expandFill(fringe, .miter, 2.4) catch return;
 
-        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths.items);
+        if (ctx.cache.paths.items[0].clip) {
+            // Find position where clip paths end
+            var i: usize = 0;
+            while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
+            ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
+        } else {
+            ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.fringe_width, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        }
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
@@ -1233,6 +1245,7 @@ pub const Context = struct {
         stroke_paint.outer_color.a *= state.alpha;
 
         ctx.flattenPaths();
+        if (ctx.cache.paths.items.len == 0) return;
 
         const fringe = if (ctx.params.edge_antialias and state.shape_antialias) ctx.fringe_width else 0;
         ctx.expandStroke(stroke_width * 0.5, fringe, state.line_cap, state.line_join, state.miter_limit) catch return;
@@ -1825,6 +1838,7 @@ const Command = enum(i32) {
     bezier_to = 2,
     close = 3,
     winding = 4,
+    clip = 5,
 
     fn fromValue(val: f32) Command {
         return @enumFromInt(@as(i32, @intFromFloat(val)));
@@ -1875,6 +1889,7 @@ pub const Path = struct {
     fill: []Vertex,
     stroke: []Vertex,
     winding: nvg.Winding,
+    clip: bool,
     convex: bool,
 };
 
@@ -1889,7 +1904,7 @@ pub const Params = struct {
     renderViewport: *const fn (uptr: *anyopaque, width: f32, height: f32, device_pixel_ratio: f32) void,
     renderCancel: *const fn (uptr: *anyopaque) void,
     renderFlush: *const fn (uptr: *anyopaque) void,
-    renderFill: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, bounds: [4]f32, paths: []const Path) void,
+    renderFill: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, bounds: [4]f32, clip_paths: []const Path, paths: []const Path) void,
     renderStroke: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, stroke_width: f32, paths: []const Path) void,
     renderTriangles: *const fn (uptr: *anyopaque, paint: *Paint, composite_operation: nvg.CompositeOperationState, scissor: *Scissor, fringe: f32, verts: []const Vertex) void,
     renderDelete: *const fn (uptr: *anyopaque) void,
@@ -2024,6 +2039,12 @@ const PathCache = struct {
     fn pathWinding(cache: *PathCache, winding: nvg.Winding) void {
         if (cache.lastPath()) |path| {
             path.winding = winding;
+        }
+    }
+
+    fn clip(cache: *PathCache) void {
+        for (cache.paths.items) |*path| {
+            path.clip = true;
         }
     }
 };

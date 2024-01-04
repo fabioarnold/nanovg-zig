@@ -132,7 +132,7 @@ pub fn main() !void {
     }
 
     var vg = try nvg.gl.init(allocator, .{
-        .antialias = true,
+        .antialias = false,
         .stencil_strokes = false,
         .debug = true,
     });
@@ -145,6 +145,7 @@ pub fn main() !void {
 
     while (c.glfwWindowShouldClose(window) == c.GLFW_FALSE) {
         const t = c.glfwGetTime();
+        const t32: f32 = @floatCast(t);
         const dt = t - prevt;
         prevt = t;
         _ = dt;
@@ -173,55 +174,82 @@ pub fn main() !void {
 
         vg.beginFrame(@floatFromInt(win_width), @floatFromInt(win_height), pxRatio);
 
-        vg.beginPath();
-        // vg.setClipPath();
-        vg.addPath(.{
-            .verbs = &.{ .move, .line, .line, .line, .close },
-            .points = &.{ 50, 50, 150, 50, 150, 150, 50, 150 },
-        });
-        vg.fillColor(nvg.rgbaf(1, 0, 0, 0.5));
-        vg.fill();
+        if (false) {
+            vg.beginPath();
+            vg.addPath(.{
+                .verbs = &.{ .move, .line, .line, .line, .close },
+                .points = &.{ 50, 50, 150, 50, 150, 150, 50, 150 },
+            });
+            vg.fillColor(nvg.rgbaf(1, 0, 0, 0.5));
+            vg.fill();
 
-        vg.beginPath();
-        vg.translate(100, 100);
-        const t32: f32 = @floatCast(t);
-        vg.rotate(t32);
-        pathStar(vg, 5, 35, 80);
-        vg.resetTransform();
-        vg.fillColor(nvg.rgbaf(1, 1, 0, 0.5));
-        vg.fill();
+            vg.beginPath();
+            vg.translate(100, 100);
+            vg.rotate(t32);
+            pathStar(vg, 5, 35, 80);
+            vg.resetTransform();
+            vg.fillColor(nvg.rgbaf(1, 1, 0, 0.5));
+            vg.fill();
 
-        // donut
-        vg.beginPath();
-        vg.translate(250, 100);
-        pathDonut(vg, 50);
-        vg.resetTransform();
-        vg.fillColor(nvg.rgbaf(1, 0.5, 0, 0.5));
-        vg.fill();
+            // donut
+            vg.beginPath();
+            vg.translate(250, 100);
+            pathDonut(vg, 50);
+            vg.resetTransform();
+            vg.fillColor(nvg.rgbaf(1, 0.5, 0, 0.5));
+            vg.fill();
 
-        // heart
-        vg.beginPath();
-        vg.translate(350, 50);
-        pathHeart(vg, 100, 100);
-        vg.resetTransform();
-        vg.fillColor(nvg.rgbf(1, 0, 0));
-        vg.fill();
+            // heart
+            vg.beginPath();
+            vg.translate(350, 50);
+            pathHeart(vg, 100, 100);
+            vg.resetTransform();
+            vg.fillColor(nvg.rgbf(1, 0, 0));
+            vg.fill();
 
-        // twitter logo
-        vg.beginPath();
-        vg.translate(500, 50);
-        pathTwitterLogo(vg, 100, 100);
-        vg.resetTransform();
-        vg.fillColor(nvg.rgb(0x1D, 0x9B, 0xF0));
-        vg.fill();
+            // twitter logo
+            vg.beginPath();
+            vg.translate(500, 50);
+            pathTwitterLogo(vg, 100, 100);
+            vg.resetTransform();
+            vg.fillColor(nvg.rgb(0x1D, 0x9B, 0xF0));
+            vg.fill();
 
-        vg.beginPath();
-        vg.translate(200, 200);
-        pathTwitterLogo(vg, 200, 200);
-        vg.translate(100, 100);
-        pathDonut(vg, 100);
-        vg.strokeColor(nvg.rgb(0, 0, 0));
-        vg.stroke();
+            vg.beginPath();
+            vg.translate(200, 200);
+            pathTwitterLogo(vg, 200, 200);
+            vg.clip();
+            vg.translate(100, 100);
+            pathDonut(vg, 100);
+            vg.strokeColor(nvg.rgb(0, 0, 0));
+            vg.strokeWidth(4);
+            vg.stroke();
+            vg.fill();
+        } else {
+            vg.translate(500, 300);
+            vg.beginPath();
+            vg.save();
+            vg.translate(-120, -120);
+            pathHeart(vg, 240, 240);
+            vg.restore();
+            vg.strokeColor(nvg.rgb(0, 0, 0));
+            vg.strokeWidth(8);
+            vg.stroke();
+            vg.fillColor(nvg.rgbf(1, 0, 0));
+            vg.fill();
+
+            vg.beginPath();
+            vg.translate(-120, -120);
+            pathHeart(vg, 240, 240);
+            vg.translate(120, 120);
+            // vg.rect(-100, -100, 200, 200); // convex clip
+            vg.clip();
+            vg.rotate(t32);
+            vg.translate(-100, -100);
+            pathTwitterLogo(vg, 200, 200);
+            vg.fillColor(nvg.rgb(0x1D, 0x9B, 0xF0));
+            vg.fill();
+        }
 
         vg.endFrame();
 

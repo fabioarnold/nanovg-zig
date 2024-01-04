@@ -335,18 +335,19 @@ const Blend = struct {
     }
 };
 
-const call_type = enum {
-    none,
+const CallType = enum {
     fill,
-    convexfill,
+    fill_convex,
     stroke,
     triangles,
 };
 
 const Call = struct {
-    call_type: call_type,
+    call_type: CallType,
     image: i32,
     colormap: i32,
+    clip_path_offset: u32,
+    clip_path_count: u32,
     path_offset: u32,
     path_count: u32,
     triangle_offset: u32,
@@ -354,18 +355,59 @@ const Call = struct {
     uniform_offset: u32,
     blend_func: Blend,
 
-    fn fill(call: Call, ctx: *GLContext) void {
-        const paths = ctx.paths.items[call.path_offset..][0..call.path_count];
+    // Stencils the clips paths into the most significant bit (0x80) of the stencil buffer
+    fn stencilClipPaths(call: Call, ctx: *GLContext) void {
+        const clip_paths = ctx.paths.items[call.clip_path_offset..][0..call.clip_path_count];
 
-        // Draw shapes
+        setUniformsSimple(ctx);
+
+        const convex = false;
+        if (convex) {
+            // Only write to the highest bit
+            gl.glStencilMask(0x80);
+            gl.glStencilFunc(gl.GL_ALWAYS, 0x80, 0xFF);
+            gl.glStencilOp(gl.GL_KEEP, gl.GL_KEEP, gl.GL_REPLACE);
+
+            for (clip_paths) |clip_path| {
+                gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(clip_path.fill_offset), @intCast(clip_path.fill_count));
+            }
+        } else {
+            gl.glStencilMask(0x7F);
+            gl.glStencilFunc(gl.GL_ALWAYS, 0x00, 0xFF);
+            gl.glStencilOpSeparate(gl.GL_FRONT, gl.GL_KEEP, gl.GL_KEEP, gl.GL_INCR_WRAP);
+            gl.glStencilOpSeparate(gl.GL_BACK, gl.GL_KEEP, gl.GL_KEEP, gl.GL_DECR_WRAP);
+            gl.glDisable(gl.GL_CULL_FACE);
+            for (clip_paths) |clip_path| {
+                gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(clip_path.fill_offset), @intCast(clip_path.fill_count));
+            }
+            gl.glEnable(gl.GL_CULL_FACE);
+
+            // cover step
+            gl.glStencilFunc(gl.GL_NOTEQUAL, 0x80, 0x7F);
+            gl.glStencilMask(0xFF);
+            gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_REPLACE);
+            gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(call.triangle_offset), @intCast(call.triangle_count));
+        }
+    }
+
+    fn fill(call: Call, ctx: *GLContext) void {
         gl.glEnable(gl.GL_STENCIL_TEST);
         defer gl.glDisable(gl.GL_STENCIL_TEST);
-        gl.glStencilMask(0xff);
-        gl.glStencilFunc(gl.GL_ALWAYS, 0x0, 0xff);
         gl.glColorMask(gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE);
 
+        if (call.clip_path_count > 0) {
+            call.stencilClipPaths(ctx);
+
+            gl.glStencilFunc(gl.GL_EQUAL, 0x80, 0x80);
+            gl.glStencilMask(0x7F); // Don't affect clip bit
+        } else {
+            gl.glStencilFunc(gl.GL_ALWAYS, 0x00, 0xFF);
+        }
+
+        const paths = ctx.paths.items[call.path_offset..][0..call.path_count];
+
         // set bindpoint for solid loc
-        setUniforms(ctx, call.uniform_offset, 0, 0);
+        setUniformsSimple(ctx);
         ctx.checkError("fill simple");
 
         gl.glStencilOpSeparate(gl.GL_FRONT, gl.GL_KEEP, gl.GL_KEEP, gl.GL_INCR_WRAP);
@@ -379,11 +421,11 @@ const Call = struct {
         // Draw anti-aliased pixels
         gl.glColorMask(gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE);
 
-        setUniforms(ctx, call.uniform_offset + 1, call.image, call.colormap);
+        setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
         ctx.checkError("fill fill");
 
         if (ctx.options.antialias) {
-            gl.glStencilFunc(gl.GL_EQUAL, 0x00, 0xff);
+            gl.glStencilFunc(gl.GL_EQUAL, 0x00, 0xFF);
             gl.glStencilOp(gl.GL_KEEP, gl.GL_KEEP, gl.GL_KEEP);
             // Draw fringes
             for (paths) |path| {
@@ -392,16 +434,29 @@ const Call = struct {
         }
 
         // Draw fill
-        gl.glStencilFunc(gl.GL_NOTEQUAL, 0x0, 0xff);
+        gl.glStencilFunc(gl.GL_NOTEQUAL, 0x00, 0x7F);
+        gl.glStencilMask(0xFF);
         gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_ZERO);
         gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(call.triangle_offset), @intCast(call.triangle_count));
     }
 
-    fn convexFill(call: Call, ctx: *GLContext) void {
+    fn fillConvex(call: Call, ctx: *GLContext) void {
+        defer if (call.clip_path_count > 0) gl.glDisable(gl.GL_STENCIL_TEST);
+        if (call.clip_path_count > 0) {
+            gl.glEnable(gl.GL_STENCIL_TEST);
+            gl.glColorMask(gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE);
+            defer gl.glColorMask(gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE);
+
+            call.stencilClipPaths(ctx);
+
+            gl.glStencilFunc(gl.GL_EQUAL, 0x80, 0xFF);
+            gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_ZERO);
+        }
+
         const paths = ctx.paths.items[call.path_offset..][0..call.path_count];
 
         setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
-        ctx.checkError("convex fill");
+        ctx.checkError("fill convex");
 
         for (paths) |path| {
             gl.glDrawArrays(gl.GL_TRIANGLE_FAN, @intCast(path.fill_offset), @intCast(path.fill_count));
@@ -602,6 +657,13 @@ fn setUniforms(ctx: *GLContext, uniform_offset: u32, image: i32, colormap: i32) 
     ctx.checkError("tex paint tex");
 }
 
+fn setUniformsSimple(ctx: *GLContext) void {
+    var frag = std.mem.zeroes(FragUniforms);
+    frag.stroke_thr = -1.0;
+    frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.simple));
+    gl.glUniform4fv(ctx.shader.frag_loc, 11, @ptrCast(&frag));
+}
+
 fn renderCreate(uptr: *anyopaque) !void {
     const ctx = GLContext.castPtr(uptr);
 
@@ -763,9 +825,8 @@ fn renderFlush(uptr: *anyopaque) void {
         for (ctx.calls.items) |call| {
             gl.glBlendFuncSeparate(call.blend_func.src_rgb, call.blend_func.dst_rgb, call.blend_func.src_alpha, call.blend_func.dst_alpha);
             switch (call.call_type) {
-                .none => {},
                 .fill => call.fill(ctx),
-                .convexfill => call.convexFill(ctx),
+                .fill_convex => call.fillConvex(ctx),
                 .stroke => call.stroke(ctx),
                 .triangles => call.triangles(ctx),
             }
@@ -786,16 +847,46 @@ fn renderFlush(uptr: *anyopaque) void {
     ctx.uniforms.clearRetainingCapacity();
 }
 
-fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.CompositeOperationState, scissor: *internal.Scissor, fringe: f32, bounds: [4]f32, paths: []const internal.Path) void {
+fn renderFill(
+    uptr: *anyopaque,
+    paint: *nvg.Paint,
+    composite_operation: nvg.CompositeOperationState,
+    scissor: *internal.Scissor,
+    fringe: f32,
+    bounds: [4]f32,
+    clip_paths: []const internal.Path,
+    paths: []const internal.Path,
+) void {
     const ctx = GLContext.castPtr(uptr);
 
     const call = ctx.calls.addOne() catch return;
     call.* = std.mem.zeroes(Call);
 
+    // Allocate vertices for all the paths.
+    const maxverts = maxVertCount(clip_paths) + maxVertCount(paths) + call.triangle_count;
+    ctx.verts.ensureUnusedCapacity(maxverts) catch return;
+
+    if (clip_paths.len > 0) {
+        // TODO: optimization for convex clip paths (clip_paths.len == 1 and clip_paths[0].convex)
+        ctx.paths.ensureUnusedCapacity(clip_paths.len) catch return;
+        call.clip_path_offset = @intCast(ctx.paths.items.len);
+        call.clip_path_count = @intCast(clip_paths.len);
+
+        for (clip_paths) |clip_path| {
+            const copy = ctx.paths.addOneAssumeCapacity();
+            copy.* = std.mem.zeroes(Path);
+            if (clip_path.fill.len > 0) {
+                copy.fill_offset = @intCast(ctx.verts.items.len);
+                copy.fill_count = @intCast(clip_path.fill.len);
+                ctx.verts.appendSliceAssumeCapacity(clip_path.fill);
+            }
+        }
+    }
+
     call.call_type = .fill;
     call.triangle_count = 4;
     if (paths.len == 1 and paths[0].convex) {
-        call.call_type = .convexfill;
+        call.call_type = .fill_convex;
         call.triangle_count = 0; // Bounding box fill quad not needed for convex fill
     }
     ctx.paths.ensureUnusedCapacity(paths.len) catch return;
@@ -804,10 +895,6 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
     call.image = paint.image.handle;
     call.colormap = paint.colormap.handle;
     call.blend_func = Blend.fromOperation(composite_operation);
-
-    // Allocate vertices for all the paths.
-    const maxverts = maxVertCount(paths) + call.triangle_count;
-    ctx.verts.ensureUnusedCapacity(maxverts) catch return;
 
     for (paths) |path| {
         const copy = ctx.paths.addOneAssumeCapacity();
@@ -832,22 +919,12 @@ fn renderFill(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.Comp
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[2], .y = bounds[1], .u = 0.5, .v = 1.0 });
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[0], .y = bounds[3], .u = 0.5, .v = 1.0 });
         ctx.verts.appendAssumeCapacity(.{ .x = bounds[0], .y = bounds[1], .u = 0.5, .v = 1.0 });
-
-        call.uniform_offset = @intCast(ctx.uniforms.items.len);
-        ctx.uniforms.ensureUnusedCapacity(2) catch return;
-        // Simple shader for stencil
-        const frag = ctx.uniforms.addOneAssumeCapacity();
-        frag.* = std.mem.zeroes(FragUniforms);
-        frag.stroke_thr = -1.0;
-        frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.simple));
-        // Fill shader
-        _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1.0, ctx);
-    } else {
-        call.uniform_offset = @intCast(ctx.uniforms.items.len);
-        ctx.uniforms.ensureUnusedCapacity(1) catch return;
-        // Fill shader
-        _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1.0, ctx);
     }
+
+    // Fill shader
+    call.uniform_offset = @intCast(ctx.uniforms.items.len);
+    ctx.uniforms.ensureUnusedCapacity(1) catch return;
+    _ = ctx.uniforms.addOneAssumeCapacity().fromPaint(paint, scissor, fringe, fringe, -1.0, ctx);
 }
 
 fn renderStroke(uptr: *anyopaque, paint: *nvg.Paint, composite_operation: nvg.CompositeOperationState, scissor: *internal.Scissor, fringe: f32, strokeWidth: f32, paths: []const internal.Path) void {

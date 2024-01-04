@@ -822,7 +822,12 @@ pub fn ellipse(self: Self, cx: f32, cy: f32, rx: f32, ry: f32) void {
 
 // Creates new circle shaped sub-path.
 pub fn circle(self: Self, cx: f32, cy: f32, r: f32) void {
-    self.ctx.circle(cx, cy, r);
+    self.ctx.ellipse(cx, cy, r, r);
+}
+
+// Use all previously recorded paths since beginPath as clip path.
+pub fn clip(self: Self) void {
+    self.ctx.clip();
 }
 
 // Fills the current path with current fill style.
