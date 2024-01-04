@@ -451,12 +451,19 @@ const Call = struct {
     }
 
     fn stroke(call: Call, ctx: *GLContext) void {
-        const paths = ctx.paths.items[call.path_offset..][0..call.path_count];
-
+        defer if (call.clip_path_count > 0) gl.glDisable(gl.GL_STENCIL_TEST);
+        if (call.clip_path_count > 0) {
             gl.glEnable(gl.GL_STENCIL_TEST);
+            gl.glColorMask(gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE);
+            defer gl.glColorMask(gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE);
 
+            call.stencilClipPaths(ctx);
 
+            gl.glStencilFunc(gl.GL_EQUAL, 0x80, 0xFF);
+            gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_ZERO);
+        }
 
+        const paths = ctx.paths.items[call.path_offset..][0..call.path_count];
 
         setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
         // Draw Strokes
@@ -809,10 +816,24 @@ fn renderFill(
 
     const call = ctx.calls.addOne() catch return;
     call.* = std.mem.zeroes(Call);
+    call.call_type = .fill;
+    if (paths.len == 1 and paths[0].convex) {
+        call.call_type = .fill_convex;
+    }
+    call.triangle_count = if (call.call_type == .fill or clip_paths.len > 0) 4 else 0;
 
     // Allocate vertices for all the paths.
     const maxverts = maxVertCount(clip_paths) + maxVertCount(paths) + call.triangle_count;
     ctx.verts.ensureUnusedCapacity(maxverts) catch return;
+
+    if (call.triangle_count > 0) {
+        // Quad
+        call.triangle_offset = @intCast(ctx.verts.items.len);
+        ctx.verts.appendAssumeCapacity(.{ .x = bounds[2], .y = bounds[3], .u = 0.5, .v = 1.0 });
+        ctx.verts.appendAssumeCapacity(.{ .x = bounds[2], .y = bounds[1], .u = 0.5, .v = 1.0 });
+        ctx.verts.appendAssumeCapacity(.{ .x = bounds[0], .y = bounds[3], .u = 0.5, .v = 1.0 });
+        ctx.verts.appendAssumeCapacity(.{ .x = bounds[0], .y = bounds[1], .u = 0.5, .v = 1.0 });
+    }
 
     if (clip_paths.len > 0) {
         // TODO: optimization for convex clip paths (clip_paths.len == 1 and clip_paths[0].convex)
@@ -831,12 +852,6 @@ fn renderFill(
         }
     }
 
-    call.call_type = .fill;
-    call.triangle_count = 4;
-    if (paths.len == 1 and paths[0].convex) {
-        call.call_type = .fill_convex;
-        call.triangle_count = 0; // Bounding box fill quad not needed for convex fill
-    }
     ctx.paths.ensureUnusedCapacity(paths.len) catch return;
     call.path_offset = @intCast(ctx.paths.items.len);
     call.path_count = @intCast(paths.len);
