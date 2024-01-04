@@ -365,11 +365,6 @@ pub fn reset(self: Self) void {
 //
 // Current render style can be saved and restored using nvgSave() and nvgRestore().
 
-// Sets whether to draw antialias for nvgStroke() and nvgFill(). It's enabled by default.
-pub fn shapeAntiAlias(self: Self, enabled: bool) void {
-    self.ctx.shapeAntiAlias(enabled);
-}
-
 // // Sets current stroke style to a solid color.
 pub fn strokeColor(self: Self, color: Color) void {
     self.ctx.strokeColor(color);

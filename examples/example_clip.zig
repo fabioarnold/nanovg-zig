@@ -111,6 +111,7 @@ pub fn main() !void {
     defer c.glfwTerminate();
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MAJOR, 2);
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 0);
+    c.glfwWindowHint(c.GLFW_SAMPLES, 4);
 
     const monitor = c.glfwGetPrimaryMonitor();
     var scale: f32 = 1;
@@ -132,8 +133,6 @@ pub fn main() !void {
     }
 
     var vg = try nvg.gl.init(allocator, .{
-        .antialias = false,
-        .stencil_strokes = false,
         .debug = true,
     });
     defer vg.deinit();
