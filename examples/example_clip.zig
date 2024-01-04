@@ -8,11 +8,24 @@ const c = @cImport({
 
 const nvg = @import("nanovg");
 
+var prng = std.rand.DefaultPrng.init(4);
+const random = prng.random();
+
+var cursor_shape: Shape = .star;
+
 fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_int, mods: c_int) callconv(.C) void {
     _ = scancode;
     _ = mods;
     if (key == c.GLFW_KEY_ESCAPE and action == c.GLFW_PRESS)
         c.glfwSetWindowShouldClose(window, c.GL_TRUE);
+}
+
+fn mouseButtonCallback(window: ?*c.GLFWwindow, button: c_int, action: c_int, mods: c_int) callconv(.C) void {
+    _ = window;
+    _ = mods;
+    if (button == c.GLFW_MOUSE_BUTTON_LEFT and action == c.GLFW_PRESS) {
+        cursor_shape = random.enumValue(Shape);
+    }
 }
 
 fn scaleToFit(vg: nvg, w: f32, h: f32, target_w: f32, target_h: f32) void {
@@ -98,6 +111,77 @@ fn pathTwitterLogo(vg: nvg, w: f32, h: f32) void {
     vg.addPath(twitter_logo);
 }
 
+const Shape = enum {
+    rect,
+    circle,
+    donut,
+    star,
+    heart,
+    twitter_logo,
+
+    fn path(shape: Shape, vg: nvg, r: f32) void {
+        switch (shape) {
+            .rect => vg.rect(-r, -r, 2 * r, 2 * r),
+            .circle => vg.circle(0, 0, r),
+            .donut => pathDonut(vg, r),
+            .star => pathStar(vg, 5, 0.5 * r, r),
+            .heart => {
+                vg.translate(-r, -r);
+                pathHeart(vg, 2 * r, 2 * r);
+                vg.translate(r, r);
+            },
+            .twitter_logo => {
+                vg.translate(-r, -r);
+                pathTwitterLogo(vg, 2 * r, 2 * r);
+                vg.translate(r, r);
+            },
+        }
+    }
+};
+
+const cols = 4;
+const rows = 4;
+const SpinningShape = struct {
+    shape: Shape,
+    angle: f32,
+    angular_vel: f32 = 0,
+};
+var shapes: [rows][cols]SpinningShape = undefined;
+
+fn spinShapes(w: f32, h: f32, mx: f32, my: f32, dt: f32) void {
+    const sx = w / cols;
+    const sy = h / rows;
+    for (&shapes, 0..) |*shapes_row, row| {
+        for (shapes_row, 0..) |*shape, col| {
+            const x: f32 = @floatFromInt(col);
+            const y: f32 = @floatFromInt(row);
+            const dx = sx * (x + 0.5) - mx;
+            const dy = sy * (y + 0.5) - my;
+            const d = @max(1000, dx * dx + dy * dy);
+            shape.angular_vel += std.math.sign(dx) * 10000 / d * dt;
+            shape.angle += shape.angular_vel * dt;
+            shape.angular_vel -= std.math.sign(shape.angular_vel) * dt;
+        }
+    }
+}
+
+fn pathShapes(vg: nvg, w: f32, h: f32) void {
+    const sx = w / cols;
+    const sy = h / rows;
+    const r = 0.4 * @min(sx, sy);
+    for (shapes, 0..) |shapes_row, row| {
+        for (shapes_row, 0..) |shape, col| {
+            const x: f32 = @floatFromInt(col);
+            const y: f32 = @floatFromInt(row);
+            vg.save();
+            vg.translate(sx * (x + 0.5), sy * (y + 0.5));
+            vg.rotate(shape.angle);
+            shape.shape.path(vg, r);
+            vg.restore();
+        }
+    }
+}
+
 pub fn main() !void {
     var window: ?*c.GLFWwindow = null;
     var prevt: f64 = 0;
@@ -125,6 +209,7 @@ pub fn main() !void {
     defer c.glfwDestroyWindow(window);
 
     _ = c.glfwSetKeyCallback(window, keyCallback);
+    _ = c.glfwSetMouseButtonCallback(window, mouseButtonCallback);
 
     c.glfwMakeContextCurrent(window);
 
@@ -139,6 +224,15 @@ pub fn main() !void {
 
     c.glfwSwapInterval(0);
 
+    for (&shapes) |*row| {
+        for (row) |*cell| {
+            cell.* = .{
+                .shape = random.enumValue(Shape),
+                .angle = random.float(f32) * std.math.tau,
+            };
+        }
+    }
+
     c.glfwSetTime(0);
     prevt = c.glfwGetTime();
 
@@ -147,7 +241,6 @@ pub fn main() !void {
         const t32: f32 = @floatCast(t);
         const dt = t - prevt;
         prevt = t;
-        _ = dt;
 
         var mx: f64 = undefined;
         var my: f64 = undefined;
@@ -173,82 +266,49 @@ pub fn main() !void {
 
         vg.beginFrame(@floatFromInt(win_width), @floatFromInt(win_height), pxRatio);
 
-        if (false) {
-            vg.beginPath();
-            vg.addPath(.{
-                .verbs = &.{ .move, .line, .line, .line, .close },
-                .points = &.{ 50, 50, 150, 50, 150, 150, 50, 150 },
-            });
-            vg.fillColor(nvg.rgbaf(1, 0, 0, 0.5));
-            vg.fill();
+        // shape grid
+        spinShapes(@floatFromInt(win_width), @floatFromInt(win_height), @floatCast(mx), @floatCast(my), @floatCast(dt));
+        vg.beginPath();
+        vg.save();
+        vg.translate(@floatCast(mx), @floatCast(my));
+        cursor_shape.path(vg, 100);
+        vg.restore();
+        pathShapes(vg, @floatFromInt(win_width), @floatFromInt(win_height));
+        vg.strokeColor(nvg.rgbf(1,1,1));
+        vg.strokeWidth(2);
+        vg.stroke();
 
-            vg.beginPath();
-            vg.translate(100, 100);
-            vg.rotate(t32);
-            pathStar(vg, 5, 35, 80);
-            vg.resetTransform();
-            vg.fillColor(nvg.rgbaf(1, 1, 0, 0.5));
-            vg.fill();
+        // clip cursor with shape grid
+        vg.beginPath();
+        vg.save();
+        vg.translate(@floatCast(mx), @floatCast(my));
+        cursor_shape.path(vg, 100);
+        vg.restore();
+        vg.clip();
+        pathShapes(vg, @floatFromInt(win_width), @floatFromInt(win_height));
+        vg.fill();
 
-            // donut
-            vg.beginPath();
-            vg.translate(250, 100);
-            pathDonut(vg, 50);
-            vg.resetTransform();
-            vg.fillColor(nvg.rgbaf(1, 0.5, 0, 0.5));
-            vg.fill();
+        // draw some random thing in the center
+        vg.translate(500, 300);
 
-            // heart
-            vg.beginPath();
-            vg.translate(350, 50);
-            pathHeart(vg, 100, 100);
-            vg.resetTransform();
-            vg.fillColor(nvg.rgbf(1, 0, 0));
-            vg.fill();
+        vg.beginPath();
+        vg.save();
+        const s = 1.1 + @cos(4 * t32);
+        vg.scale(s, s);
+        Shape.heart.path(vg, 100);
+        vg.restore();
+        vg.strokeColor(nvg.rgb(0, 0, 0));
+        vg.strokeWidth(8);
+        vg.stroke();
+        vg.fillColor(nvg.rgbf(1, 0, 0));
+        vg.fill();
 
-            // twitter logo
-            vg.beginPath();
-            vg.translate(500, 50);
-            pathTwitterLogo(vg, 100, 100);
-            vg.resetTransform();
-            vg.fillColor(nvg.rgb(0x1D, 0x9B, 0xF0));
-            vg.fill();
-
-            vg.beginPath();
-            vg.translate(200, 200);
-            pathTwitterLogo(vg, 200, 200);
-            vg.clip();
-            vg.translate(100, 100);
-            pathDonut(vg, 100);
-            vg.strokeColor(nvg.rgb(0, 0, 0));
-            vg.strokeWidth(4);
-            vg.stroke();
-            vg.fill();
-        } else {
-            vg.translate(500, 300);
-            vg.beginPath();
-            vg.save();
-            vg.translate(-120, -120);
-            pathHeart(vg, 240, 240);
-            vg.restore();
-            vg.strokeColor(nvg.rgb(0, 0, 0));
-            vg.strokeWidth(8);
-            vg.stroke();
-            vg.fillColor(nvg.rgbf(1, 0, 0));
-            vg.fill();
-
-            vg.beginPath();
-            vg.translate(-120, -120);
-            pathHeart(vg, 240, 240);
-            vg.translate(120, 120);
-            // vg.rect(-100, -100, 200, 200); // convex clip
-            vg.clip();
-            vg.rotate(t32);
-            vg.translate(-100, -100);
-            pathTwitterLogo(vg, 200, 200);
-            vg.fillColor(nvg.rgb(0x1D, 0x9B, 0xF0));
-            vg.fill();
-        }
+        vg.clip();
+        vg.rotate(3 * t32);
+        Shape.star.path(vg, 100);
+        vg.stroke();
+        vg.fillColor(nvg.rgbf(1, 1, 0));
+        vg.fill();
 
         vg.endFrame();
 
