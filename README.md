@@ -28,6 +28,10 @@ For an example on how to use nanovg-zig in your project's `build.zig` you can ta
 * Text with automatic linebreaks and blurring
 * Images as pattern for fills and strokes
 
+### Features exclusive to the Zig version
+
+* Clip paths
+
 Usage
 =====
 
@@ -40,8 +44,6 @@ The drawing context is created using a backend-specific initialization function.
 const nvg = @import("nanovg");
 ...
 var vg = try nvg.gl.init(allocator, .{
-	.antialias = true,
-	.stencil_strokes = false,
 	.debug = true,
 });
 defer vg.deinit();
@@ -93,6 +95,7 @@ See [nanovg.zig](/src/nanovg.zig) for an API reference.
 ## Projects using nanovg-zig
 
 - [MiniPixel by fabioarnold](https://github.com/fabioarnold/minipixel)
+- [Snake by fabioarnold](https://fabioarnold.itch.io/snake)
 
 ## License
 The original library and this rewrite are licensed under the [zlib license](LICENSE.txt)
