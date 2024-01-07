@@ -7,18 +7,37 @@ const c = @cImport({
     @cInclude("rive_capi.h");
 });
 
+var allocator: std.mem.Allocator = undefined;
+
 fn getNanoVGContext(ctx: ?*anyopaque) *nvg {
     return @ptrCast(@alignCast(ctx));
 }
 
+const ClipPath = struct {
+    points: []const f32,
+    verbs: []const u8,
+    transform: [6]f32,
+
+    fn initDefault() ClipPath {
+        return .{
+            .points = &.{},
+            .verbs = &.{},
+            .transform = [6]f32{ 1, 0, 0, 1, 0, 0 },
+        };
+    }
+};
+var clip_path_stack: std.ArrayList(ClipPath) = undefined;
+
 fn riveSave(ctx: ?*anyopaque) callconv(.C) void {
     const vg: *nvg = getNanoVGContext(ctx);
     vg.save();
+    clip_path_stack.append(clip_path_stack.getLast()) catch unreachable;
 }
 
 fn riveRestore(ctx: ?*anyopaque) callconv(.C) void {
     const vg: *nvg = getNanoVGContext(ctx);
     vg.restore();
+    _ = clip_path_stack.pop();
 }
 
 fn riveTransform(ctx: ?*anyopaque, mat2d_ptr: [*c]const f32) callconv(.C) void {
@@ -56,8 +75,6 @@ fn rivePath(vg: *nvg, points: []const f32, verbs: []const u8) void {
     }
 }
 
-var has_clip: bool = false;
-
 fn riveClipPath(
     ctx: ?*anyopaque,
     points_ptr: [*c]const f32,
@@ -71,12 +88,10 @@ fn riveClipPath(
     const points = points_ptr[0..points_len];
     const verbs = verbs_ptr[0..verbs_len];
 
-    vg.beginPath();
-    rivePath(vg, points, verbs);
-    vg.clip();
-    has_clip = true;
-    // vg.strokeColor(nvg.rgb(0, 0, 0));
-    // vg.stroke();
+    const clip_path = &clip_path_stack.items[clip_path_stack.items.len - 1];
+    clip_path.points = points;
+    clip_path.verbs = verbs;
+    vg.currentTransform(&clip_path.transform);
 }
 
 fn riveDrawPath(
@@ -94,8 +109,22 @@ fn riveDrawPath(
     const verbs = verbs_ptr[0..verbs_len];
     const paint = paint_ptr.*;
 
-    if (!has_clip) vg.beginPath();
-    has_clip = false;
+    vg.beginPath();
+    const clip_path = clip_path_stack.getLast();
+    if (clip_path.points.len > 0) {
+        var ct: [6]f32 = undefined;
+        vg.currentTransform(&ct);
+        defer {
+            vg.resetTransform();
+            vg.transform(ct[0], ct[1], ct[2], ct[3], ct[4], ct[5]);
+        }
+        vg.resetTransform();
+        const t = &clip_path.transform;
+        vg.transform(t[0], t[1], t[2], t[3], t[4], t[5]);
+        rivePath(vg, clip_path.points, clip_path.verbs);
+        vg.clip();
+    }
+
     rivePath(vg, points, verbs);
     const comp = std.mem.asBytes(&paint.color);
     const comp1 = std.mem.asBytes(&paint.color1);
@@ -148,7 +177,10 @@ pub fn main() !void {
     var prevt: f64 = 0;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
+    allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
+
+    clip_path_stack = std.ArrayList(ClipPath).init(allocator);
+    try clip_path_stack.append(ClipPath.initDefault());
 
     if (c.glfwInit() == c.GLFW_FALSE) {
         return error.GLFWInitFailed;

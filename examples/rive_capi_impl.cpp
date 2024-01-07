@@ -78,10 +78,9 @@ class NanoVGRenderer : public rive::Renderer {
 private:
     void* ctx;
     RiveRendererInterface interface;
-    NanoVGRenderPath *clip_path;
 
 public:
-    NanoVGRenderer(void* ctx, RiveRendererInterface interface) : ctx(ctx), interface(interface), clip_path(nullptr) {}
+    NanoVGRenderer(void* ctx, RiveRendererInterface interface) : ctx(ctx), interface(interface) {}
 
     virtual void save() override;
     virtual void restore() override;
@@ -104,6 +103,9 @@ NanoVGRenderPath::NanoVGRenderPath(rive::RawPath& rawPath) {
 
 void NanoVGRenderPath::fillRule(FillRule value) {
     // TODO always non-zero?
+    if (value == FillRule::evenOdd) {
+        printf("evenOdd\n");
+    }
 }
 
 void NanoVGRenderPath::reset() {
@@ -141,22 +143,18 @@ void NanoVGRenderPath::close() {
 }
 
 void NanoVGRenderer::save() {
-    printf("save\n");
     interface.save(ctx);
 }
 
 void NanoVGRenderer::restore() {
-    printf("restore\n");
     interface.restore(ctx);
 }
 
 void NanoVGRenderer::transform(const Mat2D& transform) {
-    printf("transform\n");
     interface.transform(ctx, transform.values());
 }
 
 void NanoVGRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
-    printf("drawPath\n");
     auto nvg_path = (NanoVGRenderPath*)path;
     auto nvg_paint = (NanoVGRenderPaint*)paint;
     interface.drawPath(ctx,
@@ -165,7 +163,6 @@ void NanoVGRenderer::drawPath(RenderPath* path, RenderPaint* paint) {
 }
 
 void NanoVGRenderer::clipPath(RenderPath* path) {
-    printf("clipPath\n");
     auto nvg_path = (NanoVGRenderPath*)path;
     interface.clipPath(ctx, (const float*)nvg_path->points.data(), 2 * nvg_path->points.size(), nvg_path->verbs.data(), nvg_path->verbs.size());
 }
