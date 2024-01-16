@@ -13,13 +13,22 @@ fn getNanoVGContext(ctx: ?*anyopaque) *nvg {
     return @ptrCast(@alignCast(ctx));
 }
 
+const Rect = struct {
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+};
+
 const ClipPath = struct {
+    rect: ?Rect,
     points: []const f32,
     verbs: []const u8,
     transform: [6]f32,
 
     fn initDefault() ClipPath {
         return .{
+            .rect = null,
             .points = &.{},
             .verbs = &.{},
             .transform = [6]f32{ 1, 0, 0, 1, 0, 0 },
@@ -75,6 +84,26 @@ fn rivePath(vg: *nvg, points: []const f32, verbs: []const u8) void {
     }
 }
 
+fn convertPathToRect(points: []const f32, verbs: []const u8) ?Rect {
+    if (points.len != 8 or verbs.len != 5) return null;
+    if (verbs[0] != c.RIVE_PATH_VERB_MOVE or
+        verbs[1] != c.RIVE_PATH_VERB_LINE or
+        verbs[2] != c.RIVE_PATH_VERB_LINE or
+        verbs[3] != c.RIVE_PATH_VERB_LINE or
+        verbs[4] != c.RIVE_PATH_VERB_CLOSE) return null;
+    const eps = 0.001;
+    if (!std.math.approxEqAbs(f32, points[1], points[3], eps) or
+        !std.math.approxEqAbs(f32, points[2], points[4], eps) or
+        !std.math.approxEqAbs(f32, points[5], points[7], eps) or
+        !std.math.approxEqAbs(f32, points[6], points[0], eps)) return null;
+    return .{
+        .x = points[0],
+        .y = points[1],
+        .w = points[4] - points[0],
+        .h = points[5] - points[1],
+    };
+}
+
 fn riveClipPath(
     ctx: ?*anyopaque,
     points_ptr: [*c]const f32,
@@ -89,8 +118,14 @@ fn riveClipPath(
     const verbs = verbs_ptr[0..verbs_len];
 
     const clip_path = &clip_path_stack.items[clip_path_stack.items.len - 1];
-    clip_path.points = points;
-    clip_path.verbs = verbs;
+    clip_path.* = ClipPath.initDefault();
+    if (convertPathToRect(points, verbs)) |rect| {
+        // std.debug.print("rect {}\n", .{rect});
+        clip_path.rect = rect;
+    } else {
+        clip_path.points = points;
+        clip_path.verbs = verbs;
+    }
     vg.currentTransform(&clip_path.transform);
 }
 
@@ -233,7 +268,7 @@ pub fn main() !void {
     defer c.riveFileDestroy(rive_file);
 
     std.log.info("artboardCount={}", .{c.riveFileArtboardCount(rive_file)});
-    const artboard = c.riveFileArtboardAt(rive_file, 1);
+    const artboard = c.riveFileArtboardAt(rive_file, 0);
     c.riveArtboardAdvance(artboard, 0);
     var bounds: [4]f32 = undefined;
     c.riveArtboardBounds(artboard, &bounds);
