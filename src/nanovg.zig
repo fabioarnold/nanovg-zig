@@ -636,12 +636,12 @@ pub fn createImageRGBA(self: Self, w: u32, h: u32, flags: ImageFlags, data: ?[]c
 
 // Creates alpha image from specified image data.
 // Returns handle to the image.
-pub fn createImageAlpha(self: Self, w: u32, h: u32, flags: ImageFlags, data: ?[]const u8) Image {
+pub fn createImageAlpha(self: Self, w: u32, h: u32, flags: ImageFlags, data: []const u8) Image {
     return self.ctx.createImageAlpha(w, h, flags, data);
 }
 
 // Updates image data specified by image handle.
-pub fn updateImage(self: Self, image: Image, data: ?[]const u8) void {
+pub fn updateImage(self: Self, image: Image, data: []const u8) void {
     self.ctx.updateImage(image, data);
 }
 
