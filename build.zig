@@ -18,9 +18,7 @@ pub fn build(b: *std.Build) !void {
     if (target.result.isWasm()) {
         _ = installDemo(b, target, optimize, "demo", "examples/example_wasm.zig", nanovg_mod);
     } else {
-        const demo_glfw = installDemo(b, target, optimize, "demo_glfw", "examples/example_glfw.zig", nanovg_mod);
-        demo_glfw.addIncludePath(.{ .path = "examples" });
-        demo_glfw.addCSourceFile(.{ .file = .{ .path = "examples/stb_image_write.c" }, .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
+        _ = installDemo(b, target, optimize, "demo_glfw", "examples/example_glfw.zig", nanovg_mod);
         _ = installDemo(b, target, optimize, "demo_fbo", "examples/example_fbo.zig", nanovg_mod);
         _ = installDemo(b, target, optimize, "demo_clip", "examples/example_clip.zig", nanovg_mod);
     }
@@ -34,6 +32,9 @@ fn installDemo(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
         .optimize = optimize,
     });
     demo.root_module.addImport("nanovg", nanovg_mod);
+
+    demo.addIncludePath(.{ .path = "examples" });
+    demo.addCSourceFile(.{ .file = .{ .path = "examples/stb_image_write.c" }, .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
 
     if (target.result.isWasm()) {
         demo.rdynamic = true;

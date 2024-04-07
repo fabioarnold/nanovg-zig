@@ -4,9 +4,9 @@ const builtin = @import("builtin");
 const nvg = @import("nanovg");
 
 const wasm = @import("web/wasm.zig");
-pub const std_options = struct {
-    pub const log_level = .info;
-    pub const logFn = wasm.log;
+pub const std_options = .{
+    .log_level = .info,
+    .logFn = wasm.log,
 };
 const gl = @import("web/webgl.zig");
 const keys = @import("web/keys.zig");
