@@ -608,7 +608,7 @@ fn setUniforms(ctx: *GLContext, uniform_offset: u32, image: i32, colormap: i32) 
     }
     // // If no image is set, use empty texture
     // if (tex == NULL) {
-    // 	tex = glnvg__findTexture(gl->dummyTex);
+    //      tex = glnvg__findTexture(gl->dummyTex);
     // }
     // glnvg__bindTexture(tex != NULL ? tex->tex : 0);
     ctx.checkError("tex paint tex");
