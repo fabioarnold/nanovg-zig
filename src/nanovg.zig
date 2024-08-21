@@ -860,11 +860,11 @@ pub fn stroke(self: Self) void {
 // While this may sound a little odd, the setup allows you to always render the
 // same way regardless of scaling. I.e. following works regardless of scaling:
 //
-//		const char* txt = "Text me up.";
-//		nvgTextBounds(vg, x,y, txt, NULL, bounds);
-//		nvgBeginPath(vg);
-//		nvgRoundedRect(vg, bounds[0],bounds[1], bounds[2]-bounds[0], bounds[3]-bounds[1]);
-//		nvgFill(vg);
+//          const char* txt = "Text me up.";
+//          nvgTextBounds(vg, x,y, txt, NULL, bounds);
+//          nvgBeginPath(vg);
+//          nvgRoundedRect(vg, bounds[0],bounds[1], bounds[2]-bounds[0], bounds[3]-bounds[1]);
+//          nvgFill(vg);
 //
 // Note: currently only solid color fill is supported for text.
 
