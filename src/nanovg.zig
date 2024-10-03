@@ -22,6 +22,7 @@ pub const Paint = struct {
     extent: [2]f32,
     radius: f32,
     feather: f32,
+    blur: [2]f32,
     inner_color: Color,
     outer_color: Color,
     image: Image,
@@ -689,6 +690,13 @@ pub fn radialGradient(self: Self, cx: f32, cy: f32, inr: f32, outr: f32, icol: C
 // The gradient is transformed by the current transform when it is passed to nvgFillPaint() or nvgStrokePaint().
 pub fn imagePattern(self: Self, ox: f32, oy: f32, ex: f32, ey: f32, angle: f32, image: Image, alpha: f32) Paint {
     return self.ctx.imagePattern(ox, oy, ex, ey, angle, image, alpha);
+}
+
+// Creates and returns an image pattern.
+// (ex,ey) the size of one image. image is a handle to the image to render.
+// (blur_x,blur_y) control the blur direction. Only either can be 1.
+pub fn imageBlur(self: Self, ex: f32, ey: f32, image: Image, blur_x: f32, blur_y: f32) Paint {
+    return self.ctx.imageBlur(ex, ey, image, blur_x, blur_y);
 }
 
 // Creates and returns an image pattern. Parameters (ox,oy) specify the left-top location of the image pattern,

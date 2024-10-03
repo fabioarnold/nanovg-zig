@@ -121,11 +121,12 @@ const GLContext = struct {
     }
 };
 
-const ShaderType = enum(u2) {
+const ShaderType = enum(u8) {
     fill_gradient,
     fill_image,
     simple,
     image,
+    blur_image,
 };
 
 const Shader = struct {
@@ -526,6 +527,7 @@ const FragUniforms = struct {
     feather: f32,
     tex_type: f32,
     shaderType: f32,
+    blurDir: [2]f32,
 
     fn fromPaint(frag: *FragUniforms, paint: *nvg.Paint, scissor: *internal.Scissor, ctx: *GLContext) i32 {
         var invxform: [6]f32 = undefined;
@@ -567,7 +569,13 @@ const FragUniforms = struct {
             } else {
                 _ = nvg.transformInverse(&invxform, &paint.xform);
             }
-            frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.fill_image));
+
+            if (paint.blur[0] > 0 or paint.blur[1] > 0) {
+                frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.blur_image));
+                frag.blurDir = paint.blur;
+            } else {
+                frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.fill_image));
+            }
 
             if (tex.tex_type == .rgba) {
                 frag.tex_type = if (tex.flags.premultiplied) 0 else 1;

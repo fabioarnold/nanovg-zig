@@ -31,6 +31,7 @@ For an example on how to use nanovg-zig in your project's `build.zig` you can ta
 ### Features exclusive to the Zig version
 
 * Clip paths
+* Image blurring
 
 Usage
 =====

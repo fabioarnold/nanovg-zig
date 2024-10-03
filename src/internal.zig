@@ -1038,6 +1038,26 @@ pub const Context = struct {
         return p;
     }
 
+    pub fn imageBlur(ctx: *Context, ex: f32, ey: f32, image: Image, blur_x: f32, blur_y: f32) Paint {
+        _ = ctx;
+        var p: Paint = std.mem.zeroes(Paint);
+
+        nvg.transformIdentity(&p.xform);
+
+        p.extent[0] = ex;
+        p.extent[1] = ey;
+
+        p.blur[0] = blur_x / ex;
+        p.blur[1] = blur_y / ey;
+
+        p.image = image;
+
+        p.inner_color = nvg.rgbaf(1, 1, 1, 1);
+        p.outer_color = nvg.rgbaf(1, 1, 1, 1);
+
+        return p;
+    }
+
     pub fn indexedImagePattern(ctx: *Context, ox: f32, oy: f32, ex: f32, ey: f32, angle: f32, image: Image, colormap: Image, alpha: f32) Paint {
         _ = ctx;
         var p: Paint = std.mem.zeroes(Paint);

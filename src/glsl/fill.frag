@@ -18,6 +18,7 @@ varying vec2 fpos;
 #define feather frag[9].w
 #define texType int(frag[10].x)
 #define type int(frag[10].y)
+#define blurDir frag[10].zw
 
 float sdroundrect(vec2 pt, vec2 ext, float rad) {
     vec2 ext2 = ext - vec2(rad,rad);
@@ -44,7 +45,7 @@ void main(void) {
         color *= scissor;
         result = color;
     } else if (type == 1) { // Image
-        // Calculate color fron texture
+        // Calculate color from texture
         vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
         vec4 color = texture2D(tex, pt);
         if (texType == 1) color = vec4(color.xyz*color.w,color.w);
@@ -70,6 +71,19 @@ void main(void) {
         }
         color *= scissor;
         result = color * innerCol;
+    } else if (type == 4) { // Blur
+        vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
+        vec4 color = vec4(0);
+        color += texture2D(tex, pt - 2.0 * blurDir) * 0.12;
+        color += texture2D(tex, pt - 1.0 * blurDir) * 0.24;
+        color += texture2D(tex, pt) * 0.28;
+        color += texture2D(tex, pt + 1.0 * blurDir) * 0.24;
+        color += texture2D(tex, pt + 2.0 * blurDir) * 0.12;
+        // Apply color tint and alpha.
+        color *= innerCol;
+        // Combine alpha
+        color *= scissor;
+        result = color;
     }
     gl_FragColor = result;
 }
