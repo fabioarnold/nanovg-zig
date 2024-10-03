@@ -25,6 +25,10 @@ pub fn build(b: *std.Build) !void {
         demo_glfw.addCSourceFile(.{ .file = b.path("examples/stb_image_write.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
         _ = installDemo(b, target, optimize, "demo_fbo", "examples/example_fbo.zig", nanovg_mod);
         _ = installDemo(b, target, optimize, "demo_clip", "examples/example_clip.zig", nanovg_mod);
+
+        const run_demo_glfw = b.addRunArtifact(demo_glfw);
+        const run_step = b.step("run", "Run the demo");
+        run_step.dependOn(&run_demo_glfw.step);
     }
 }
 

@@ -13,7 +13,7 @@ NanoVG is a small anti-aliased hardware-accelerated vector graphics library. It 
 
 There's a WebAssembly example using WebGL which you can immediately try here: https://fabioarnold.github.io/nanovg-zig. The source for this example can be found in [example_wasm.zig](/examples/example_wasm.zig) and can be built by running `zig build -Dtarget=wasm32-freestanding`.
 
-A native cross-platform example using [GLFW](https://glfw.org) can be found in [example_glfw.zig](/examples/example_glfw.zig) and can be built by running `zig build`. It requires GLFW to be installed. On Windows [vcpkg](https://github.com/microsoft/vcpkg) is an additional requirement.
+A native cross-platform example using [GLFW](https://glfw.org) can be found in [example_glfw.zig](/examples/example_glfw.zig) and can be built and run with `zig build run`. It requires GLFW to be installed. On Windows [vcpkg](https://github.com/microsoft/vcpkg) is an additional requirement.
 
 For an example on how to use nanovg-zig in your project's `build.zig` you can take a look at https://github.com/fabioarnold/MiniPixel/blob/main/build.zig.
 
