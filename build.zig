@@ -16,7 +16,9 @@ pub fn build(b: *std.Build) !void {
     nanovg_mod.addCSourceFile(.{ .file = b.path("src/stb_image.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
 
     if (target.result.isWasm()) {
-        _ = installDemo(b, target, optimize, "demo", "examples/example_wasm.zig", nanovg_mod);
+        const demo_wasm = installDemo(b, target, optimize, "demo", "examples/example_wasm.zig", nanovg_mod);
+        demo_wasm.addIncludePath(b.path("examples"));
+        demo_wasm.addCSourceFile(.{ .file = b.path("examples/stb_image_write.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
     } else {
         const demo_glfw = installDemo(b, target, optimize, "demo_glfw", "examples/example_glfw.zig", nanovg_mod);
         demo_glfw.addIncludePath(b.path("examples"));
@@ -48,8 +50,8 @@ fn installDemo(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
                 demo.linkSystemLibrary("opengl32");
             },
             .macos => {
-                demo.addIncludePath(b.path("/opt/homebrew/include"));
-                demo.addLibraryPath(b.path("/opt/homebrew/lib"));
+                demo.addIncludePath(.{ .cwd_relative = "/opt/homebrew/include" });
+                demo.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/lib" });
                 demo.linkSystemLibrary("glfw");
                 demo.linkFramework("OpenGL");
             },
