@@ -74,11 +74,13 @@ pub fn main() !void {
     });
     defer vg.deinit();
 
-    var fb: [2]Framebuffer = undefined;
-    fb[0] = Framebuffer.create(vg, 64, 64, .{});
-    fb[1] = Framebuffer.create(vg, 64, 64, .{});
-    defer fb[0].delete(vg);
-    defer fb[1].delete(vg);
+    var fb_x: [9]Framebuffer = undefined;
+    var fb_y: [9]Framebuffer = undefined;
+    for (0..fb_x.len) |i| {
+        const w = @as(u32, 256) >> @as(u5, @intCast(i));
+        fb_x[i] = Framebuffer.create(vg, w, w, .{});
+        fb_y[i] = Framebuffer.create(vg, w, w, .{});
+    }
 
     var blur: f32 = 8;
     const blur_max: f32 = 256;
@@ -121,38 +123,43 @@ pub fn main() !void {
         c.glfwGetWindowSize(window, &win_width, &win_height);
         win_width = @intFromFloat(@as(f32, @floatFromInt(win_width)) / scale);
         win_height = @intFromFloat(@as(f32, @floatFromInt(win_height)) / scale);
-        var fb_width: i32 = undefined;
-        var fb_height: i32 = undefined;
-        c.glfwGetFramebufferSize(window, &fb_width, &fb_height);
+        var framebuffer_width: i32 = undefined;
+        var framebuffer_height: i32 = undefined;
+        c.glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
 
         // Calculate pixel ratio for hi-dpi devices.
-        const pxRatio = @as(f32, @floatFromInt(fb_width)) / @as(f32, @floatFromInt(win_width));
+        const pxRatio = @as(f32, @floatFromInt(framebuffer_width)) / @as(f32, @floatFromInt(win_width));
 
         const width: f32 = @floatFromInt(win_width);
         const height: f32 = @floatFromInt(win_height);
 
-        // blur x
-        fb[0].bind();
-        c.glViewport(0, 0, 64, 64);
-        vg.beginFrame(64, 64, 1);
+        const fb_level = if (blur < 1) 0 else std.math.log2(blur);
+        const fb_level_int = @min(fb_x.len - 1, @as(usize, @intFromFloat(fb_level)));
+        const fb_level_fract = fb_level - @as(f32, @floatFromInt(fb_level_int));
+        const blur_biased: f32 = if (fb_level_int == 0) fb_level_fract else 0.5 + 0.5 * fb_level_fract;
+        const fb_width: f32 = @floatFromInt(@as(u32, 256) >> @as(u5, @intCast(fb_level_int)));
+        c.glViewport(0, 0, @intFromFloat(fb_width), @intFromFloat(fb_width));
+        // blur_x
+        fb_x[fb_level_int].bind();
+        vg.beginFrame(fb_width, fb_width, 1);
         vg.beginPath();
-        vg.rect(0, 0, 64, 64);
-        vg.fillPaint(vg.imageBlur(64, 64, image_baboon, 1.0, 0));
+        vg.rect(0, 0, fb_width, fb_width);
+        // vg.fillPaint(vg.imagePattern(0, 0, fb_width, fb_width, 0, image_baboon, 1));
+        vg.fillPaint(vg.imageBlur(fb_width, fb_width, image_baboon, blur_biased, 0));
         vg.fill();
         vg.endFrame();
-        // blur y
-        fb[1].bind();
-        c.glViewport(0, 0, 64, 64);
-        vg.beginFrame(64, 64, 1);
+        // blur_y
+        fb_y[fb_level_int].bind();
+        vg.beginFrame(fb_width, fb_width, 1);
         vg.beginPath();
-        vg.rect(0, 0, 64, 64);
-        vg.fillPaint(vg.imageBlur(64, 64, fb[0].image, 0, 1.0));
+        vg.rect(0, 0, fb_width, fb_width);
+        vg.fillPaint(vg.imageBlur(fb_width, fb_width, fb_x[fb_level_int].image, 0, blur_biased));
         vg.fill();
         vg.endFrame();
         Framebuffer.unbind();
 
         // Update and render
-        c.glViewport(0, 0, fb_width, fb_height);
+        c.glViewport(0, 0, framebuffer_width, framebuffer_height);
         c.glClearColor(132.0 / 255.0, 152.0 / 255.0, 187.0 / 255.0, 1);
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
@@ -182,11 +189,11 @@ pub fn main() !void {
             x = @round(gap + 256 + gap);
             vg.beginPath();
             vg.rect(x, y, 256, 256);
-            vg.fillPaint(vg.imagePattern(x, y, 256, 256, 0, fb[1].image, 1));
+            vg.fillPaint(vg.imagePattern(x, y, 256, 256, 0, fb_y[fb_level_int].image, 1));
             vg.fill();
 
-            var buf: [16]u8 = undefined;
-            const blur_text = try std.fmt.bufPrint(&buf, "Blur {d:0.2}px", .{blur});
+            var buf: [64]u8 = undefined;
+            const blur_text = try std.fmt.bufPrint(&buf, "Blur {d:0.2}px mip_level={d:0.2}", .{ blur, fb_level });
             vg.fillColor(nvg.rgbaf(0, 0, 0, 0.5));
             _ = vg.text(x + 128, y + 256 + 25, blur_text);
             vg.fillColor(nvg.rgbf(1, 1, 1));
