@@ -18,6 +18,24 @@ fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_in
         c.glfwSetWindowShouldClose(window, c.GL_TRUE);
 }
 
+fn drawSlider(vg: nvg, x: f32, y: f32, w: f32, value: f32) void {
+    vg.fillColor(nvg.rgb(0xdd, 0xdd, 0xdd));
+    vg.strokeColor(nvg.rgb(0x55, 0x55, 0x55));
+    vg.beginPath();
+    vg.roundedRect(x - 2.5, y - 2.5, w + 5, 5, 2.5);
+    vg.fill();
+    vg.stroke();
+    const knob_x = x + @round(w * value);
+    vg.beginPath();
+    vg.ellipse(knob_x, y, 6.5, 6.6);
+    vg.fill();
+    vg.stroke();
+}
+
+fn pointInRect(px: f32, py: f32, rx: f32, ry: f32, rw: f32, rh: f32) bool {
+    return px >= rx and py >= ry and px < rx + rw and py < ry + rh;
+}
+
 pub fn main() !void {
     var window: ?*c.GLFWwindow = null;
 
@@ -62,6 +80,11 @@ pub fn main() !void {
     defer fb[0].delete(vg);
     defer fb[1].delete(vg);
 
+    var blur: f32 = 8;
+    const blur_max: f32 = 256;
+    var slider_value: f32 = 0.375;
+    var slider_grab: bool = false;
+
     var fps = PerfGraph.init(.fps, "Frame Time");
 
     _ = vg.createFontMem("sans", @embedFile("Roboto-Regular.ttf"));
@@ -76,6 +99,7 @@ pub fn main() !void {
 
     c.glfwSetTime(0);
     var prevt = c.glfwGetTime();
+    var mouse_down_prev = false;
 
     while (c.glfwWindowShouldClose(window) == c.GLFW_FALSE) {
         const t = c.glfwGetTime();
@@ -86,6 +110,10 @@ pub fn main() !void {
         var mx: f64 = undefined;
         var my: f64 = undefined;
         c.glfwGetCursorPos(window, &mx, &my);
+        const mouse_x: f32 = @floatCast(@round(mx));
+        const mouse_y: f32 = @floatCast(@round(my));
+        const mouse_down = c.glfwGetMouseButton(window, 0) != 0;
+        defer mouse_down_prev = mouse_down;
         mx /= scale;
         my /= scale;
         var win_width: i32 = undefined;
@@ -99,6 +127,9 @@ pub fn main() !void {
 
         // Calculate pixel ratio for hi-dpi devices.
         const pxRatio = @as(f32, @floatFromInt(fb_width)) / @as(f32, @floatFromInt(win_width));
+
+        const width: f32 = @floatFromInt(win_width);
+        const height: f32 = @floatFromInt(win_height);
 
         // blur x
         fb[0].bind();
@@ -122,7 +153,7 @@ pub fn main() !void {
 
         // Update and render
         c.glViewport(0, 0, fb_width, fb_height);
-        c.glClearColor(0.3, 0.3, 0.32, 1.0);
+        c.glClearColor(132.0 / 255.0, 152.0 / 255.0, 187.0 / 255.0, 1);
         c.glClear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT | c.GL_STENCIL_BUFFER_BIT);
 
         vg.beginFrame(@floatFromInt(win_width), @floatFromInt(win_height), pxRatio);
@@ -131,8 +162,9 @@ pub fn main() !void {
             vg.save();
             defer vg.restore();
 
-            var x: f32 = (@as(f32, @floatFromInt(win_width)) - 512) / 3;
-            const y: f32 = (@as(f32, @floatFromInt(win_height)) - 256) / 2;
+            const gap = (width - 2 * 256) / 3;
+            var x: f32 = @round(gap);
+            const y: f32 = (height - 256) / 2;
 
             vg.beginPath();
             vg.rect(x, y, 256, 256);
@@ -140,17 +172,42 @@ pub fn main() !void {
             vg.fill();
 
             vg.fontFace("sans");
+            vg.textAlign(.{ .horizontal = .center });
             vg.fillColor(nvg.rgbf(1, 1, 1));
-            _ = vg.text(x, y, "Normal");
+            vg.fillColor(nvg.rgbaf(0, 0, 0, 0.5));
+            _ = vg.text(x + 128, y + 256 + 25, "Original");
+            vg.fillColor(nvg.rgbf(1, 1, 1));
+            _ = vg.text(x + 128, y + 256 + 24, "Original");
 
-            x = 2 * x + 256;
+            x = @round(gap + 256 + gap);
             vg.beginPath();
             vg.rect(x, y, 256, 256);
             vg.fillPaint(vg.imagePattern(x, y, 256, 256, 0, fb[1].image, 1));
             vg.fill();
 
+            var buf: [16]u8 = undefined;
+            const blur_text = try std.fmt.bufPrint(&buf, "Blur {d:0.2}px", .{blur});
+            vg.fillColor(nvg.rgbaf(0, 0, 0, 0.5));
+            _ = vg.text(x + 128, y + 256 + 25, blur_text);
             vg.fillColor(nvg.rgbf(1, 1, 1));
-            _ = vg.text(x, y, "Blur 8px");
+            _ = vg.text(x + 128, y + 256 + 24, blur_text);
+
+            // slider control
+            const slider_w = 256;
+            const slider_x = x;
+            const slider_y = y + 256 + 40;
+            drawSlider(vg, slider_x, slider_y, slider_w, slider_value);
+            if (!mouse_down_prev and mouse_down and pointInRect(mouse_x, mouse_y, slider_x, slider_y - 6, slider_w, 12)) {
+                slider_grab = true;
+            }
+            if (slider_grab) {
+                if (mouse_down) {
+                    slider_value = std.math.clamp(mouse_x - slider_x, 0, slider_w - 1) / slider_w;
+                    blur = std.math.pow(f32, blur_max, slider_value) - 1;
+                } else {
+                    slider_grab = false;
+                }
+            }
         }
 
         fps.draw(vg, 5, 5);
