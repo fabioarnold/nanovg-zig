@@ -52,7 +52,7 @@ defer vg.deinit();
 
 The second parameter defines options for creating the renderer.
 
-- `antialias` means that the renderer adjusts the geometry to include anti-aliasing. If you're using MSAA, you can omit this option to be default initialized as false. 
+- `antialias` means that the renderer adjusts the geometry to include anti-aliasing. If you're using MSAA, you can omit this option to be default initialized as false.
 - `stencil_strokes` means that the render uses better quality rendering for (overlapping) strokes. The quality is mostly visible on wider strokes. If you want speed, you can omit this option to be default initialized as false.
 
 Currently, there is an OpenGL backend for NanoVG: [nanovg_gl.zig](/src/nanovg_gl.zig) for OpenGL 2.0 and WebGL. WebGL is automatically chosen when targeting WebAssembly. There's an interface called `Params` defined in [internal.zig](src/internal.zig), which can be implemented by additional backends.
@@ -63,7 +63,7 @@ Currently, there is an OpenGL backend for NanoVG: [nanovg_gl.zig](/src/nanovg_gl
 
 Drawing a simple shape using NanoVG consists of four steps:
 1) begin a new shape,
-2) define the path to draw, 
+2) define the path to draw,
 3) set fill or stroke,
 4) and finally fill or stroke the path.
 
@@ -88,6 +88,46 @@ vg.pathWinding(.cw); // Mark circle as a hole.
 vg.fillColor(nvg.rgba(255,192,0,255));
 vg.fill();
 ```
+
+## Building a Program with nanovg-zig
+
+Here's how to integrate `nanovg-zig` into your Zig project:
+
+1.  **Add the library as a dependency:**
+
+    Run the following command in your project directory to fetch and save `nanovg-zig` as a dependency:
+
+    ```bash
+    zig fetch --save git+https://github.com/fabioarnold/nanovg-zig.git
+    ```
+
+2.  **Import the library in your `build.zig` file:**
+
+    Add the following code snippet to your `build.zig` file. This creates a dependency on `nanovg-zig` and imports the `nanovg` module into your executable:
+
+    ```zig
+    const nanovg_zig = b.dependency("nanovg-zig", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("nanovg", nanovg_zig.module("nanovg"));
+    ```
+
+    Replace `exe` with the name of your ExecutableOptions instance.
+
+3.  **Link against OpenGL:**
+
+    `nanovg-zig` relies on OpenGL for rendering.  *You must manually link against OpenGL in your `build.zig` file.*  The [build.zig](/build.zig) file in the repository demonstrates how to do this.
+
+4.  **Use NanoVG in your code:**
+
+    You can now import and use the `nanovg` module in your Zig source files:
+
+    ```zig
+    const nvg = @import("nanovg");
+    ```
+
+    Refer to the "Creating a drawing context" and "Drawing shapes with NanoVG" sections above for examples of how to use the NanoVG API.
 
 ## API Reference
 
