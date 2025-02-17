@@ -113,7 +113,7 @@ Here's how to integrate `nanovg-zig` into your Zig project:
     exe.root_module.addImport("nanovg", nanovg_zig.module("nanovg"));
     ```
 
-    Replace `exe` with the name of your ExecutableOptions instance.
+    Replace `exe` with your target executable.
 
 3.  **Link against OpenGL:**
 
