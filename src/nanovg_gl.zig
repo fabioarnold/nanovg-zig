@@ -17,6 +17,7 @@ const nvg = @import("nanovg.zig");
 const internal = @import("internal.zig");
 
 pub const Options = struct {
+    stencil_strokes: bool = false,
     debug: bool = false,
 };
 
@@ -466,10 +467,43 @@ const Call = struct {
 
         const paths = ctx.paths.items[call.path_offset..][0..call.path_count];
 
-        setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
-        // Draw Strokes
-        for (paths) |path| {
-            gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
+        if (ctx.options.stencil_strokes and call.clip_path_count == 0) {
+            gl.glEnable(gl.GL_STENCIL_TEST);
+            defer gl.glDisable(gl.GL_STENCIL_TEST);
+
+            gl.glStencilMask(0xff);
+
+            // Fill the stroke base without overlap
+            gl.glStencilFunc(gl.GL_EQUAL, 0x0, 0xff);
+            gl.glStencilOp(gl.GL_KEEP, gl.GL_KEEP, gl.GL_INCR);
+            setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
+            ctx.checkError("stroke fill 0");
+            for (paths) |path| {
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
+            }
+
+            // Draw anti-aliased pixels.
+            gl.glStencilFunc(gl.GL_EQUAL, 0x00, 0xff);
+            gl.glStencilOp(gl.GL_KEEP, gl.GL_KEEP, gl.GL_KEEP);
+            for (paths) |path| {
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
+            }
+
+            // Clear stencil buffer.
+            gl.glColorMask(gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE, gl.GL_FALSE);
+            gl.glStencilFunc(gl.GL_ALWAYS, 0x0, 0xff);
+            gl.glStencilOp(gl.GL_ZERO, gl.GL_ZERO, gl.GL_ZERO);
+            ctx.checkError("stroke fill 1");
+            for (paths) |path| {
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
+            }
+            gl.glColorMask(gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE, gl.GL_TRUE);
+        } else {
+            setUniforms(ctx, call.uniform_offset, call.image, call.colormap);
+            // Draw Strokes
+            for (paths) |path| {
+                gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, @intCast(path.stroke_offset), @intCast(path.stroke_count));
+            }
         }
     }
 

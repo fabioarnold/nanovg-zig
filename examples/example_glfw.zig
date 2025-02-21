@@ -63,6 +63,7 @@ pub fn main() !void {
     }
 
     var vg = try nvg.gl.init(allocator, .{
+        .stencil_strokes = true,
         .debug = true,
     });
     defer vg.deinit();
