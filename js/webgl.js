@@ -43,10 +43,12 @@ if (!gl) {
 
 const glShaders = [];
 const glPrograms = [];
+const glUniformLocations = [];
 const glVertexArrays = [];
 const glBuffers = [];
 const glTextures = [];
-const glUniformLocations = [];
+const glFramebuffers = [null];
+const glRenderbuffers = [null];
 
 const glInitShader = (sourcePtr, sourceLen, type) => {
   const source = readCharStr(sourcePtr, sourceLen);
@@ -73,6 +75,7 @@ const glLinkShaderProgram = (vertexShaderId, fragmentShaderId) => {
 
 const glViewport = (x, y, width, height) => gl.viewport(x, y, width, height);
 const glClearColor = (r, g, b, a) => gl.clearColor(r, g, b, a);
+const glClearDepth = (d) => gl.clearDepth(d);
 const glClear = (x) => gl.clear(x);
 const glColorMask = (r, g, b, a) => gl.colorMask(r, g, b, a);
 const glStencilMask = (mask) => gl.stencilMask(mask);
@@ -113,7 +116,12 @@ const glGetShaderInfoLog = (shader, bufSize, length, infoLog) => {
   console.log(gl.getShaderInfoLog(glShaders[shader]));
 };
 const jsBindAttribLocation = (programId, index, namePtr, nameLen) => gl.bindAttribLocation(glPrograms[programId], index, readCharStr(namePtr, nameLen));
-const glLinkProgram = (program) => gl.linkProgram(glPrograms[program]);
+const glLinkProgram = (program) => {
+  gl.linkProgram(glPrograms[program]);
+  if (!gl.getProgramParameter(glPrograms[program], gl.LINK_STATUS)) {
+    throw ("Error linking program:" + gl.getProgramInfoLog(glPrograms[program]));
+  }
+}
 const glGetProgramiv = (program, pname, params) => {
   const buffer = new Uint32Array(memory.buffer, params, 1);
   buffer[0] = gl.getProgramParameter(glPrograms[program], pname);
@@ -131,8 +139,12 @@ const glUniform4fv = (locationId, count, value) => {
   let arr = new Float32Array(memory.buffer, value, count * 4);
   gl.uniform4fv(glUniformLocations[locationId], arr);
 }
-const glUniformMatrix4fv = (locationId, dataLen, transpose, dataPtr) => {
-  const floats = new Float32Array(memory.buffer, dataPtr, dataLen * 16);
+const glUniformMatrix3fv = (locationId, count, transpose, dataPtr) => {
+  const floats = new Float32Array(memory.buffer, dataPtr, count * 9);
+  gl.uniformMatrix3fv(glUniformLocations[locationId], transpose, floats);
+};
+const glUniformMatrix4fv = (locationId, count, transpose, dataPtr) => {
+  const floats = new Float32Array(memory.buffer, dataPtr, count * 16);
   gl.uniformMatrix4fv(glUniformLocations[locationId], transpose, floats);
 };
 const glUniform1i = (locationId, x) => gl.uniform1i(glUniformLocations[locationId], x);
@@ -141,6 +153,7 @@ const glUniform2fv = (locationId, count, value) => {
   let arr = new Float32Array(memory.buffer, value, count * 2);
   gl.uniform2fv(glUniformLocations[locationId], arr);
 }
+const glUniform3f = (locationId, x, y, z) => gl.uniform3f(glUniformLocations[locationId], x, y, z);
 const glCreateBuffer = () => {
   glBuffers.push(gl.createBuffer());
   return glBuffers.length - 1;
@@ -233,16 +246,30 @@ const glDeleteTextures = (num, dataPtr) => {
 };
 const glBindTexture = (target, textureId) => gl.bindTexture(target, glTextures[textureId]);
 const glTexImage2D = (target, level, internalFormat, width, height, border, format, type, dataPtr, dataLen) => {
-  const data = new Uint8Array(memory.buffer, dataPtr, dataLen);
+  const data = !dataPtr ? null : new Uint8Array(memory.buffer, dataPtr, dataLen);
   gl.texImage2D(target, level, internalFormat, width, height, border, format, type, data);
 };
 const glTexSubImage2D = (target, level, xoffset, yoffset, width, height, format, type, dataPtr, dataLen) => {
-  const data = new Uint8Array(memory.buffer, dataPtr, dataLen);
+  const data = !dataPtr ? null : new Uint8Array(memory.buffer, dataPtr, dataLen);
   gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, data);
+}
+function jsLoadTextureIMG(dataPtr, dataLen, mimePtr, mimeLen, widthPtr, heightPtr) {
+  const data = new Uint8Array(memory.buffer, dataPtr, dataLen);
+  const textureId = glCreateTexture();
+  const img = new Image();
+  // images.push(img); // track loading progress
+  const mime = readCharStr(mimePtr, mimeLen);
+  img.src = URL.createObjectURL(new Blob([data], { type: mime }));
+  img.onload = () => {
+    if (widthPtr) new Uint16Array(memory.buffer, widthPtr, 1)[0] = img.width;
+    if (heightPtr) new Uint16Array(memory.buffer, heightPtr, 1)[0] = img.height;
+    createGLTexture(img, glTextures[textureId]);
+  };
+  return textureId;
 }
 const glTexParameteri = (target, pname, param) => gl.texParameteri(target, pname, param);
 const glGenerateMipmap = (target) => gl.generateMipmap(target);
-const glActiveTexture = (target) => gl.activeTexture(target);
+const glActiveTexture = (texture) => gl.activeTexture(texture);
 const glCreateVertexArray = () => {
   glVertexArrays.push(gl.createVertexArray());
   return glVertexArrays.length - 1;
@@ -268,6 +295,60 @@ const glReadPixels = (x, y, w, h, format, type, pixels) => {
   gl.readPixels(x, y, w, h, format, type, data);
 }
 const glGetError = () => gl.getError();
+const glCreateFramebuffer = () => {
+  glFramebuffers.push(gl.createFramebuffer());
+  return glFramebuffers.length - 1;
+}
+const glBindFramebuffer = (target, id) => gl.bindFramebuffer(target, glFramebuffers[id]);
+const glDeleteFramebuffer = (id) => {
+  gl.deleteFramebuffer(glFramebuffers[id]);
+  glFramebuffers[id] = undefined;
+}
+const glGenFramebuffers = (n, framebuffers) => {
+  const buffers = new Uint32Array(memory.buffer, framebuffers, n);
+  for (let i = 0; i < n; i++) {
+    buffers[i] = glCreateFramebuffer();
+  }
+}
+const glDeleteFramebuffers = (n, framebuffers) => {
+  const buffers = new Uint32Array(memory.buffer, framebuffers, n);
+  for (let i = 0; i < n; i++) {
+    glDeleteFramebuffer(buffers[i]);
+  }
+}
+const glCheckFramebufferStatus = (target) => gl.checkFramebufferStatus(target);
+const glCreateRenderbuffer = () => {
+  glRenderbuffers.push(gl.createRenderbuffer());
+  return glRenderbuffers.length - 1;
+}
+const glBindRenderbuffer = (target, id) => gl.bindRenderbuffer(target, glRenderbuffers[id]);
+const glDeleteRenderbuffer = (id) => {
+  gl.deleteRenderbuffer(glRenderbuffers[id]);
+  glRenderbuffers[id] = undefined;
+}
+const glGenRenderbuffers = (n, renderbuffers) => {
+  const buffers = new Uint32Array(memory.buffer, renderbuffers, n);
+  for (let i = 0; i < n; i++) {
+    buffers[i] = glCreateRenderbuffer();
+  }
+}
+const glDeleteRenderbuffers = (n, renderbuffers) => {
+  const buffers = new Uint32Array(memory.buffer, renderbuffers, n);
+  for (let i = 0; i < n; i++) {
+    glDeleteRenderbuffer(buffers[i]);
+  }
+}
+const glRenderbufferStorage = (target, internalFormat, width, height) => gl.renderbufferStorage(target, internalFormat, width, height);
+const glFramebufferTexture2D = (target, attachment, textarget, texture, level) => gl.framebufferTexture2D(target, attachment, textarget, glTextures[texture], level);
+const glFramebufferRenderbuffer = (target, attachment, renderbuffertarget, renderbuffer) => gl.framebufferRenderbuffer(target, attachment, renderbuffertarget, glRenderbuffers[renderbuffer]);
+const glGetIntegerv = (pname, param) => {
+  let result = gl.getParameter(pname);
+  if (!result) result = new Uint32Array([0]);
+  const buffers = new Uint32Array(memory.buffer, param, result.length);
+  for (let i = 0; i < result.length; i++) {
+    buffers[i] = result[i];
+  }
+}
 
 var webgl = {
   glInitShader,
@@ -278,6 +359,7 @@ var webgl = {
   glDeleteShader,
   glViewport,
   glClearColor,
+  glClearDepth,
   glCullFace,
   glFrontFace,
   glEnable,
@@ -304,12 +386,14 @@ var webgl = {
   glGetProgramInfoLog,
   glGetAttribLocation,
   jsGetUniformLocation,
-  glUniform4f,
-  glUniform4fv,
-  glUniformMatrix4fv,
   glUniform1i,
   glUniform1f,
   glUniform2fv,
+  glUniform3f,
+  glUniform4f,
+  glUniform4fv,
+  glUniformMatrix3fv,
+  glUniformMatrix4fv,
   glCreateBuffer,
   glGenBuffers,
   glDeleteBuffer,
@@ -328,6 +412,7 @@ var webgl = {
   glBindTexture,
   glTexImage2D,
   glTexSubImage2D,
+  jsLoadTextureIMG,
   glTexParameteri,
   glGenerateMipmap,
   glActiveTexture,
@@ -338,4 +423,15 @@ var webgl = {
   glPixelStorei,
   glReadPixels,
   glGetError,
+  glGenFramebuffers,
+  glBindFramebuffer,
+  glDeleteFramebuffers,
+  glCheckFramebufferStatus,
+  glGenRenderbuffers,
+  glBindRenderbuffer,
+  glDeleteRenderbuffers,
+  glRenderbufferStorage,
+  glFramebufferTexture2D,
+  glFramebufferRenderbuffer,
+  glGetIntegerv,
 };

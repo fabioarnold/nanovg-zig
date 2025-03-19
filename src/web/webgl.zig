@@ -132,6 +132,15 @@ pub const GL_COMPILE_STATUS = 0x8B81;
 pub const GL_LINK_STATUS = 0x8B82;
 pub const GL_UNPACK_ALIGNMENT = 0x0CF5;
 
+pub const GL_FRAMEBUFFER_COMPLETE = 0x8CD5;
+pub const GL_COLOR_ATTACHMENT0 = 0x8CE0;
+pub const GL_STENCIL_ATTACHMENT = 0x8D20;
+pub const GL_FRAMEBUFFER = 0x8D40;
+pub const GL_RENDERBUFFER = 0x8D41;
+pub const GL_FRAMEBUFFER_BINDING = 0x8CA6;
+pub const GL_RENDERBUFFER_BINDING = 0x8CA7;
+pub const GL_STENCIL_INDEX8 = 0x8D48;
+
 //
 // Miscellaneous
 //
@@ -146,6 +155,7 @@ pub extern fn glDisable(cap: GLenum) void;
 pub extern fn glGetError() GLenum;
 pub extern fn glPixelStorei(pname: GLenum, param: GLint) void;
 pub extern fn glReadPixels(x: GLint, y: GLint, width: GLsizei, height: GLsizei, format: GLenum, type: GLenum, data: ?*anyopaque) void;
+pub extern fn glGetIntegerv(pname: GLenum, params: [*c]GLint) void;
 
 //
 // Transformation
@@ -213,3 +223,14 @@ pub extern fn glUniform1i(location: GLint, v0: GLint) void;
 pub extern fn glUniform2fv(location: GLint, count: GLsizei, value: [*c]const GLfloat) void;
 pub extern fn glUniform4fv(location: GLint, count: GLsizei, value: [*c]const GLfloat) void;
 pub extern fn glVertexAttribPointer(index: GLuint, size: GLint, @"type": GLenum, normalized: GLboolean, stride: GLsizei, pointer: ?*const anyopaque) void;
+
+pub extern fn glGenFramebuffers(n: GLsizei, framebuffers: [*c]GLuint) void;
+pub extern fn glBindFramebuffer(target: GLenum, id: GLuint) void;
+pub extern fn glDeleteFramebuffers(n: GLsizei, framebuffers: [*c]const GLuint) void;
+pub extern fn glCheckFramebufferStatus(target: GLenum) GLenum;
+pub extern fn glGenRenderbuffers(n: GLsizei, renderbuffers: [*c]GLuint) void;
+pub extern fn glBindRenderbuffer(target: GLenum, renderbuffer: GLuint) void;
+pub extern fn glDeleteRenderbuffers(n: GLsizei, renderbuffers: [*c]const GLuint) void;
+pub extern fn glRenderbufferStorage(target: GLenum, internalformat: GLenum, width: GLsizei, height: GLsizei) void;
+pub extern fn glFramebufferTexture2D(target: GLenum, attachment: GLenum, textarget: GLenum, texture: GLuint, level: GLint) void;
+pub extern fn glFramebufferRenderbuffer(target: GLenum, attachment: GLenum, renderbuffertarget: GLenum, renderbuffer: GLuint) void;
