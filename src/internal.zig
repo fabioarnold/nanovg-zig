@@ -122,7 +122,7 @@ pub const Context = struct {
     }
 
     pub fn restore(ctx: *Context) void {
-        _ = ctx.states.popOrNull();
+        _ = ctx.states.pop();
     }
 
     pub fn reset(ctx: *Context) void {

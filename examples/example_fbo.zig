@@ -70,7 +70,7 @@ pub fn main() !void {
 
     const monitor = c.glfwGetPrimaryMonitor();
     var scale: f32 = 1;
-    if (!builtin.target.isDarwin()) {
+    if (builtin.target.os.tag != .macos) {
         c.glfwGetMonitorContentScale(monitor, &scale, null);
     }
     window = c.glfwCreateWindow(@as(i32, @intFromFloat(scale * 1000)), @as(i32, @intFromFloat(scale * 600)), "NanoVG", null, null);
