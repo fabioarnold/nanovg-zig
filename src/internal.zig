@@ -466,11 +466,7 @@ pub const Context = struct {
 
             // Enforce winding.
             if (path.count > 2) {
-                const area = polyArea(pts);
-                if (path.winding == .ccw and area < 0.0)
-                    polyReverse(pts);
-                if (path.winding == .cw and area > 0.0)
-                    polyReverse(pts);
+                if (path.winding == .cw) polyReverse(pts);
             }
 
             p0 = &pts[pts.len - 1];
