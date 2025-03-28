@@ -44,6 +44,12 @@ pub fn init(allocator: Allocator, options: Options) !nvg {
     };
 }
 
+pub fn findTexture(vg: nvg, image: nvg.Image) gl.GLuint {
+    const gl_ctx: *GLContext = @alignCast(@ptrCast(vg.ctx.params.user_ptr));
+    const tex = gl_ctx.findTexture(image.handle) orelse return 0;
+    return tex.tex;
+}
+
 const GLContext = struct {
     allocator: Allocator,
     options: Options,
@@ -247,9 +253,7 @@ pub const Framebuffer = struct {
         image_flags.flip_y = true;
         image_flags.premultiplied = true;
         fb.image = vg.createImageRGBA(w, h, image_flags, null);
-
-        const gl_ctx: *GLContext = @alignCast(@ptrCast(vg.ctx.params.user_ptr));
-        fb.texture = gl_ctx.findTexture(fb.image.handle).?.tex;
+        fb.texture = findTexture(vg, fb.image);
 
         // frame buffer object
         gl.glGenFramebuffers(1, &fb.fbo);
