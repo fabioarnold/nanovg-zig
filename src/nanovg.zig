@@ -15,6 +15,14 @@ pub const Color = struct {
     g: f32,
     b: f32,
     a: f32,
+
+    pub fn trans(c: Color, a: u8) Color {
+        return c.transf(@as(f32, @floatFromInt(a)) / 255.0);
+    }
+
+    pub fn transf(c: Color, a: f32) Color {
+        return .{ .r = c.r, .g = c.g, .b = c.b, .a = a };
+    }
 };
 
 pub const Paint = struct {
