@@ -572,8 +572,8 @@ const FragUniforms = struct {
 
         frag.* = std.mem.zeroes(FragUniforms);
 
-        frag.inner_color = premulColor(paint.inner_color);
-        frag.outer_color = premulColor(paint.outer_color);
+        frag.inner_color = paint.inner_color;
+        frag.outer_color = paint.outer_color;
 
         if (scissor.extent[0] < -0.5 or scissor.extent[1] < -0.5) {
             @memset(&frag.scissor_mat, 0);
