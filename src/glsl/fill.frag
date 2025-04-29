@@ -41,6 +41,7 @@ void main(void) {
         vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
         float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
         vec4 color = mix(innerCol,outerCol,d);
+        color.rgb *= color.a;
         // Combine alpha
         color *= scissor;
         result = color;
@@ -56,6 +57,7 @@ void main(void) {
         }
         // Apply color tint and alpha.
         color *= innerCol;
+        color.rgb *= innerCol.a;
         // Combine alpha
         color *= scissor;
         result = color;
@@ -70,7 +72,9 @@ void main(void) {
             color = vec4(color.xyz*color.w,color.w);
         }
         color *= scissor;
-        result = color * innerCol;
+        color *= innerCol;
+        color.rgb *= innerCol.a;
+        result = color;
     } else if (type == 4) { // Blur
         vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
         vec4 color = vec4(0);
@@ -98,6 +102,7 @@ void main(void) {
         // color += texture2D(tex, pt + 5.0 * blurDir) * 0.020985076793630084;
         // Apply color tint and alpha.
         color *= innerCol;
+        color.rgb *= innerCol.a;
         // Combine alpha
         color *= scissor;
         result = color;
