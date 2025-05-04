@@ -1,7 +1,7 @@
 .{
-    .name = "nanovg-zig",
-
+    .name = .nanovg_zig,
     .version = "0.0.0",
+    .fingerprint = 0x84abd4315eb3f875,
 
     // This field is optional.
     // This is currently advisory only; Zig does not yet do anything

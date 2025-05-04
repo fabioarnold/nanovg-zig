@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) !void {
     nanovg_mod.addCSourceFile(.{ .file = b.path("src/fontstash.c"), .flags = &.{ "-DFONS_NO_STDIO", "-fno-stack-protector" } });
     nanovg_mod.addCSourceFile(.{ .file = b.path("src/stb_image.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
 
-    if (target.result.isWasm()) {
+    if (target.result.cpu.arch.isWasm()) {
         const demo_wasm = installDemo(b, target, optimize, "demo", "examples/example_wasm.zig", nanovg_mod);
         demo_wasm.addIncludePath(b.path("examples"));
         demo_wasm.addCSourceFile(.{ .file = b.path("examples/stb_image_write.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
@@ -42,7 +42,7 @@ fn installDemo(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
     });
     demo.root_module.addImport("nanovg", nanovg_mod);
 
-    if (target.result.isWasm()) {
+    if (target.result.cpu.arch.isWasm()) {
         demo.rdynamic = true;
         demo.entry = .disabled;
     } else {
