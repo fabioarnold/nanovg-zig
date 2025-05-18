@@ -106,18 +106,51 @@ Here's how to integrate `nanovg-zig` into your Zig project:
     Add the following code snippet to your `build.zig` file. This creates a dependency on `nanovg-zig` and imports the `nanovg` module into your executable:
 
     ```zig
-    const nanovg_zig = b.dependency("nanovg-zig", .{
+    const nanovg_zig = b.dependency("nanovg_zig", .{
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("nanovg", nanovg_zig.module("nanovg"));
+    linkGl(b, exe_mod, dep_nanovg);
+    exe_mod.addImport("nanovg", nanovg_zig.module("nanovg"));
     ```
 
-    Replace `exe` with your target executable.
+    Replace `exe_mod` with your target executable.
 
 3.  **Link against OpenGL:**
 
-    `nanovg-zig` relies on OpenGL for rendering.  *You must manually link against OpenGL in your `build.zig` file.*  The [build.zig](/build.zig) file in the repository demonstrates how to do this.
+    `nanovg-zig` relies on OpenGL for rendering. Put this function in front of your `build.zig` to link against OpenGL.
+
+    ```zig
+    fn linkGl(b: *std.Build, exe: *std.Build.Module, dep: *std.Build.Dependency) void {
+        _ = b;
+        exe.addIncludePath(dep.path("lib/gl2/include"));
+        exe.addCSourceFile(.{ .file = dep.path("lib/gl2/src/glad.c"), .flags = &.{} });
+        switch (exe.resolved_target.?.result.os.tag) {
+            .windows => {
+                // b.installBinFile("glfw3.dll", "glfw3.dll");
+                exe.linkSystemLibrary("glfw3dll", .{});
+                exe.linkSystemLibrary("opengl32", .{});
+            },
+            .macos => {
+                exe.addIncludePath(.{ .cwd_relative = "/opt/homebrew/include" });
+                exe.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/lib" });
+                exe.linkSystemLibrary("glfw", .{});
+                exe.linkFramework("OpenGL", .{});
+            },
+            .linux => {
+                exe.linkSystemLibrary("glfw3", .{});
+                exe.linkSystemLibrary("GL", .{});
+                exe.linkSystemLibrary("X11", .{});
+            },
+            else => {
+                std.log.warn("Unsupported target: {}", .{exe.resolved_target.?});
+                exe.linkSystemLibrary("glfw3", .{});
+                exe.linkSystemLibrary("GL", .{});
+            },
+        }
+    }
+    ```
+
 
 4.  **Use NanoVG in your code:**
 
