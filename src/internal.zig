@@ -1302,7 +1302,7 @@ pub const Context = struct {
 
     pub fn text(ctx: *Context, x: f32, y: f32, string: []const u8) f32 {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.device_px_ratio;
+        const s = ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
@@ -1403,7 +1403,7 @@ pub const Context = struct {
 
     pub fn textGlyphPositions(ctx: *Context, x: f32, y: f32, string: []const u8, positions: []nvg.GlyphPosition) usize {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.device_px_ratio;
+        const s = ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
@@ -1447,7 +1447,7 @@ pub const Context = struct {
 
     pub fn textBreakLines(ctx: *Context, string: []const u8, break_row_width_arg: f32, rows: []nvg.TextRow) usize {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.device_px_ratio;
+        const s = ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
@@ -1641,7 +1641,7 @@ pub const Context = struct {
 
     pub fn textBounds(ctx: *Context, x: f32, y: f32, string: []const u8, bounds: ?*[4]f32) f32 {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.device_px_ratio;
+        const s = ctx.device_px_ratio;
         const invs = 1.0 / s;
         const end = &string.ptr[string.len];
 
@@ -1667,7 +1667,7 @@ pub const Context = struct {
 
     pub fn textBoxBounds(ctx: *Context, x_arg: f32, y_arg: f32, break_row_width: f32, string_arg: []const u8, bounds: ?*[4]f32) void {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.device_px_ratio;
+        const s = ctx.device_px_ratio;
         const invs = 1.0 / s;
 
         if (state.font_id == c.FONS_INVALID) {
@@ -1744,7 +1744,7 @@ pub const Context = struct {
 
     pub fn textMetrics(ctx: *Context, ascender: ?*f32, descender: ?*f32, lineh: ?*f32) void {
         const state = ctx.getState();
-        const s = state.getFontScale() * ctx.device_px_ratio;
+        const s = ctx.device_px_ratio;
         const invs = 1.0 / s;
 
         if (state.font_id == c.FONS_INVALID) return;
@@ -1859,10 +1859,6 @@ const State = struct {
     font_blur: f32,
     text_align: nvg.TextAlign,
     font_id: i32,
-
-    fn getFontScale(state: State) f32 {
-        return @min(quantize(getAverageScale(state.xform), 0.01), 4.0);
-    }
 };
 
 const Point = struct {
@@ -1996,10 +1992,6 @@ fn normalize(x: *f32, y: *f32) f32 {
         y.* *= id;
     }
     return d;
-}
-
-fn quantize(a: f32, d: f32) f32 {
-    return @round(a / d) * d;
 }
 
 fn transformPoint(dx: *f32, dy: *f32, t: [6]f32, sx: f32, sy: f32) void {
