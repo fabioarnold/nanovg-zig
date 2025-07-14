@@ -590,6 +590,9 @@ const FragUniforms = struct {
             frag.scissor_scale[1] = @sqrt(scissor.xform[1] * scissor.xform[1] + scissor.xform[3] * scissor.xform[3]);
         }
 
+        frag.radius = paint.radius;
+        frag.feather = paint.feather;
+
         @memcpy(&frag.extent, &paint.extent);
 
         if (paint.image.handle != 0) {
@@ -624,8 +627,6 @@ const FragUniforms = struct {
             }
         } else {
             frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.fill_gradient));
-            frag.radius = paint.radius;
-            frag.feather = paint.feather;
             _ = nvg.transformInverse(&invxform, &paint.xform);
         }
 

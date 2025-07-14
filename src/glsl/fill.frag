@@ -71,9 +71,12 @@ void main(void) {
             color = texture2D(colormap, vec2(color.x, 0.5));
             color = vec4(color.xyz*color.w,color.w);
         }
+        vec2 pt = (paintMat * vec3(fpos,1.0)).xy;
+        float d = clamp((sdroundrect(pt, extent, radius) + feather*0.5) / feather, 0.0, 1.0);
+        vec4 gradientColor = mix(innerCol,outerCol,d);
         color *= scissor;
-        color *= innerCol;
-        color.rgb *= innerCol.a;
+        color *= gradientColor;
+        color.rgb *= gradientColor.a;
         result = color;
     } else if (type == 4) { // Blur
         vec2 pt = (paintMat * vec3(fpos,1.0)).xy / extent;
