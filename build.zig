@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/nanovg.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
+        .link_libc = !target.result.cpu.arch.isWasm(),
     });
     nanovg_mod.addIncludePath(b.path("src"));
     nanovg_mod.addIncludePath(b.path("lib/gl2/include"));
@@ -16,9 +16,8 @@ pub fn build(b: *std.Build) !void {
     nanovg_mod.addCSourceFile(.{ .file = b.path("src/stb_image.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
 
     if (target.result.cpu.arch.isWasm()) {
-        const demo_wasm = installDemo(b, target, optimize, "demo", "examples/example_wasm.zig", nanovg_mod);
-        demo_wasm.addIncludePath(b.path("examples"));
-        demo_wasm.addCSourceFile(.{ .file = b.path("examples/stb_image_write.c"), .flags = &.{ "-DSTBI_NO_STDIO", "-fno-stack-protector" } });
+        nanovg_mod.addIncludePath(b.path("src/web/libc"));
+        _ = installDemo(b, target, optimize, "demo", "examples/example_wasm.zig", nanovg_mod);
     } else {
         const demo_glfw = installDemo(b, target, optimize, "demo_glfw", "examples/example_glfw.zig", nanovg_mod);
         demo_glfw.addIncludePath(b.path("examples"));
