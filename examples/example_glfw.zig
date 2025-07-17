@@ -117,13 +117,6 @@ pub fn main() !void {
 
         vg.endFrame();
 
-        if (screenshot) {
-            screenshot = false;
-            const data = try Demo.saveScreenshot(allocator, fb_width, fb_height, premult);
-            defer allocator.free(data);
-            try std.fs.cwd().writeFile(.{ .sub_path = "dump.png", .data = data });
-        }
-
         c.glfwSwapBuffers(window);
         c.glfwPollEvents();
     }

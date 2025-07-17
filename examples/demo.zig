@@ -3,10 +3,6 @@ const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const c = @cImport({
-    @cDefine("STBI_WRITE_NO_STDIO", "1");
-    @cInclude("stb_image_write.h");
-});
 const use_webgl = builtin.cpu.arch.isWasm();
 const gl = if (use_webgl)
     @import("web/webgl.zig")
@@ -1074,46 +1070,4 @@ fn premultiplyAlpha(image: []u8, w: usize, h: usize, stride: usize) void {
             }
         }
     }
-}
-
-fn stbiWriteFunc(context: ?*anyopaque, data: ?*anyopaque, size: c_int) callconv(.C) void {
-    const buffer: *ArrayList(u8) = @alignCast(@ptrCast(context.?));
-    const slice = @as([*]const u8, @ptrCast(data.?))[0..@intCast(size)];
-    buffer.appendSlice(slice) catch return;
-}
-
-pub fn saveScreenshot(allocator: Allocator, w: i32, h: i32, premult: bool) ![]const u8 {
-    const uw: usize = @intCast(w);
-    const uh: usize = @intCast(h);
-    const stride = uw * 4;
-    const image = try allocator.alloc(u8, uw * uh * 4);
-    gl.glReadPixels(0, 0, w, h, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, image.ptr);
-    if (premult) {
-        unpremultiplyAlpha(image, uw, uh, stride);
-    } else {
-        // Set alpha
-        var i: usize = 3;
-        while (i < image.len) : (i += 4) {
-            image[i] = 0xff;
-        }
-    }
-
-    // flip vertically
-    var y0: usize = 0;
-    while (y0 < uh / 2) : (y0 += 1) {
-        const y1 = uh - 1 - y0;
-        const row0 = image[y0 * stride ..][0..stride];
-        const row1 = image[y1 * stride ..][0..stride];
-        var x: usize = 0;
-        while (x < stride) : (x += 1) {
-            std.mem.swap(u8, &row0[x], &row1[x]);
-        }
-    }
-
-    var buffer = ArrayList(u8).init(allocator);
-    errdefer buffer.deinit();
-    if (c.stbi_write_png_to_func(stbiWriteFunc, &buffer, w, h, 4, image.ptr, w * 4) == 0) {
-        return error.StbiWritePngFailed;
-    }
-    return buffer.toOwnedSlice();
 }

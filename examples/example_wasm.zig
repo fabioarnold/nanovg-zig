@@ -4,7 +4,7 @@ const builtin = @import("builtin");
 const nvg = @import("nanovg");
 
 const wasm = @import("web/wasm.zig");
-pub const std_options = .{
+pub const std_options = std.Options{
     .log_level = .info,
     .logFn = wasm.log,
 };
@@ -94,15 +94,4 @@ export fn onAnimationFrame() void {
     fps.draw(vg, 5, 5);
 
     vg.endFrame();
-
-    if (screenshot) {
-        screenshot = false;
-        const w: i32 = @intFromFloat(video_width * video_scale);
-        const h: i32 = @intFromFloat(video_height * video_scale);
-        const data = Demo.saveScreenshot(allocator, w, h, premult) catch return;
-        defer allocator.free(data);
-        const filename = "dump.png";
-        const mimetype = "image/png";
-        wasm.download(filename, filename.len, mimetype, mimetype.len, data.ptr, data.len);
-    }
 }
