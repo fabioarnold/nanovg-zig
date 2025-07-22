@@ -412,6 +412,8 @@ fn drawEyes(vg: nvg, x: f32, y: f32, w: f32, h: f32, mx: f32, my: f32, t: f32) v
     _ = my;
     _ = t;
 
+    std.debug.print("drawEyes x: {d} y: {d} w: {d} h: {d}\n", .{ x, y, w, h });
+
     vg.save();
 
     vg.beginPath();

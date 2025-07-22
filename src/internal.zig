@@ -30,7 +30,6 @@ pub const Context = struct {
     commandy: f32 = 0,
     states: ArrayList(State),
     cache: PathCache,
-    clip_cache: PathCache,
     tess_tol: f32,
     dist_tol: f32,
     device_px_ratio: f32 = 1,
@@ -50,7 +49,6 @@ pub const Context = struct {
             .commands = ArrayList(f32).init(allocator),
             .states = ArrayList(State).init(allocator),
             .cache = try PathCache.init(allocator),
-            .clip_cache = try PathCache.init(allocator),
             .tess_tol = undefined,
             .dist_tol = undefined,
             .device_px_ratio = undefined,
@@ -89,7 +87,6 @@ pub const Context = struct {
         ctx.commands.deinit();
         ctx.states.deinit();
         ctx.cache.deinit();
-        ctx.clip_cache.deinit();
 
         if (ctx.fs != null) {
             c.fonsDeleteInternal(ctx.fs);
@@ -281,7 +278,7 @@ pub const Context = struct {
     }
 
     pub fn beginFrame(ctx: *Context, window_width: f32, window_height: f32, device_pixel_ratio: f32) void {
-        ctx.clip_cache.clear(); // TODO(jake): Maybe something else here
+        ctx.cache.clip_paths.clearRetainingCapacity(); // TODO(jake): Maybe something else here
 
         ctx.states.clearRetainingCapacity();
         ctx.save();
@@ -939,17 +936,21 @@ pub const Context = struct {
         ctx.expandFill(.miter, 2.4) catch return;
 
         // Copy all paths to clip_paths
-        ctx.cache.copyTo(&ctx.clip_cache) catch return;
-        ctx.cache.clear();
+        ctx.cache.clip_paths.clearRetainingCapacity();
+        for (ctx.cache.paths.items) |*path| {
+            const new_path = ctx.cache.clip_paths.addOne() catch return;
+            new_path.* = path.*;
+        }
+        ctx.cache.paths.clearRetainingCapacity();
 
-        std.debug.print("Current path: {}\n", .{ctx.clip_cache.paths.items.len});
-        for (ctx.clip_cache.paths.items) |*path| {
+        std.debug.print("Current path: {}\n", .{ctx.cache.clip_paths.items.len});
+        for (ctx.cache.clip_paths.items) |*path| {
             std.debug.print("Path: {}\n", .{path.count});
         }
     }
 
     pub fn clearClip(ctx: *Context) void {
-        ctx.clip_cache.clear();
+        ctx.cache.clip_paths.clearRetainingCapacity();
     }
 
     pub fn imageSize(ctx: *Context, image: i32, w: *u32, h: *u32) void {
@@ -1182,20 +1183,25 @@ pub const Context = struct {
         // Render fill with no clip paths
         // ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
 
-        if (ctx.clip_cache.paths.items.len > 0) {
-            std.debug.print("Rendering fill with Clip path: {}\n", .{ctx.clip_cache.paths.items.len});
+        if (ctx.cache.clip_paths.items.len > 0) {
+            std.debug.print("Rendering fill with Clip path: {}\n", .{ctx.cache.clip_paths.items.len});
 
-            std.debug.print("ClipCache: {}\n", .{ctx.clip_cache.paths.items.len});
-            for (ctx.clip_cache.paths.items) |*path| {
+            std.debug.print("ClipCache: {}\n", .{ctx.cache.clip_paths.items.len});
+            std.debug.print("Points: {}\n", .{ctx.cache.points.items.len});
+            std.debug.print("Verts: {}\n", .{ctx.cache.verts.items.len});
+            // for (ctx.clip_cache.verts.items) |*vert| {
+            //     std.debug.print("    Vert: {} {}\n", .{ vert.x, vert.y });
+            // }
+            for (ctx.cache.clip_paths.items) |*path| {
                 std.debug.print("  Path: {}\n", .{path.count});
                 for (path.fill) |*fill2| {
-                    std.debug.print("    Fill: {} {}\n", .{ fill2.x, fill2.y });
+                    std.debug.print("    Fill: {d} {d}\n", .{ fill2.x, fill2.y });
                 }
             }
             std.debug.print("--------------------------------\n", .{});
         }
 
-        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.clip_cache.paths.items, ctx.cache.paths.items);
+        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.clip_paths.items, ctx.cache.paths.items);
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
@@ -1924,6 +1930,7 @@ const PathCache = struct {
     allocator: Allocator,
     points: ArrayList(Point),
     paths: ArrayList(Path),
+    clip_paths: ArrayList(Path),
     verts: ArrayList(Vertex),
     bounds: [4]f32 = [_]f32{0} ** 4,
 
@@ -1932,44 +1939,28 @@ const PathCache = struct {
             .allocator = allocator,
             .points = try ArrayList(Point).initCapacity(allocator, 128),
             .paths = try ArrayList(Path).initCapacity(allocator, 16),
+            .clip_paths = try ArrayList(Path).initCapacity(allocator, 16),
             .verts = try ArrayList(Vertex).initCapacity(allocator, 256),
         };
         errdefer cache.deinit();
         try cache.points.ensureTotalCapacity(128);
         try cache.paths.ensureTotalCapacity(16);
+        try cache.clip_paths.ensureTotalCapacity(16);
         try cache.verts.ensureTotalCapacity(256);
         return cache;
-    }
-
-    fn copyTo(cache: *PathCache, other: *PathCache) !void {
-        // Copy points
-        for (cache.points.items) |*point| {
-            const new_point = try other.points.addOne();
-            new_point.* = point.*;
-        }
-        // Copy paths
-        for (cache.paths.items) |*path| {
-            const new_path = try other.paths.addOne();
-            new_path.* = path.*;
-        }
-        // Copy verts
-        for (cache.verts.items) |*vert| {
-            const new_vert = try other.verts.addOne();
-            new_vert.* = vert.*;
-        }
-        // Copy bounds
-        other.bounds = cache.bounds;
     }
 
     fn deinit(cache: *PathCache) void {
         cache.points.deinit();
         cache.paths.deinit();
+        cache.clip_paths.deinit();
         cache.verts.deinit();
     }
 
     pub fn clear(cache: *PathCache) void {
         cache.points.clearRetainingCapacity();
         cache.paths.clearRetainingCapacity();
+        // cache.clip_paths.clearRetainingCapacity(); // Don't clear clip paths
     }
 
     fn allocTempVerts(cache: *PathCache, nverts: u32) ![]Vertex {
