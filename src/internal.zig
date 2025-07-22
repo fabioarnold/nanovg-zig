@@ -30,6 +30,7 @@ pub const Context = struct {
     commandy: f32 = 0,
     states: ArrayList(State),
     cache: PathCache,
+    clip_cache: PathCache,
     tess_tol: f32,
     dist_tol: f32,
     device_px_ratio: f32 = 1,
@@ -49,6 +50,7 @@ pub const Context = struct {
             .commands = ArrayList(f32).init(allocator),
             .states = ArrayList(State).init(allocator),
             .cache = try PathCache.init(allocator),
+            .clip_cache = try PathCache.init(allocator),
             .tess_tol = undefined,
             .dist_tol = undefined,
             .device_px_ratio = undefined,
@@ -87,6 +89,7 @@ pub const Context = struct {
         ctx.commands.deinit();
         ctx.states.deinit();
         ctx.cache.deinit();
+        ctx.clip_cache.deinit();
 
         if (ctx.fs != null) {
             c.fonsDeleteInternal(ctx.fs);
@@ -278,6 +281,8 @@ pub const Context = struct {
     }
 
     pub fn beginFrame(ctx: *Context, window_width: f32, window_height: f32, device_pixel_ratio: f32) void {
+        ctx.clip_cache.clear(); // TODO(jake): Maybe something else here
+
         ctx.states.clearRetainingCapacity();
         ctx.save();
         ctx.reset();
@@ -440,7 +445,8 @@ pub const Context = struct {
                     i += 2;
                 },
                 .clip => {
-                    cache.clip();
+                    // Don't apply clip here, it should already be applied
+                    // ctx.applyClip();
                     i += 1;
                 },
             }
@@ -927,7 +933,23 @@ pub const Context = struct {
     }
 
     pub fn clip(ctx: *Context) void {
-        ctx.appendCommands(.{Command.clip.toValue()});
+        // ctx.appendCommands(.{Command.clip.toValue()});
+        // Print current path
+        ctx.flattenPaths();
+        ctx.expandFill(.miter, 2.4) catch return;
+
+        // Copy all paths to clip_paths
+        ctx.cache.copyTo(&ctx.clip_cache) catch return;
+        ctx.cache.clear();
+
+        std.debug.print("Current path: {}\n", .{ctx.clip_cache.paths.items.len});
+        for (ctx.clip_cache.paths.items) |*path| {
+            std.debug.print("Path: {}\n", .{path.count});
+        }
+    }
+
+    pub fn clearClip(ctx: *Context) void {
+        ctx.clip_cache.clear();
     }
 
     pub fn imageSize(ctx: *Context, image: i32, w: *u32, h: *u32) void {
@@ -1148,14 +1170,32 @@ pub const Context = struct {
 
         ctx.expandFill(.miter, 2.4) catch return;
 
-        if (ctx.cache.paths.items[0].clip) {
-            // Find position where clip paths end
-            var i: usize = 0;
-            while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
-            ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
-        } else {
-            ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        // if (ctx.cache.paths.items[0].clip) {
+        //     // Find position where clip paths end
+        //     var i: usize = 0;
+        //     while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
+        //     ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
+        // } else {
+        //     ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        // }
+
+        // Render fill with no clip paths
+        // ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+
+        if (ctx.clip_cache.paths.items.len > 0) {
+            std.debug.print("Rendering fill with Clip path: {}\n", .{ctx.clip_cache.paths.items.len});
+
+            std.debug.print("ClipCache: {}\n", .{ctx.clip_cache.paths.items.len});
+            for (ctx.clip_cache.paths.items) |*path| {
+                std.debug.print("  Path: {}\n", .{path.count});
+                for (path.fill) |*fill2| {
+                    std.debug.print("    Fill: {} {}\n", .{ fill2.x, fill2.y });
+                }
+            }
+            std.debug.print("--------------------------------\n", .{});
         }
+
+        ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.clip_cache.paths.items, ctx.cache.paths.items);
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
@@ -1901,6 +1941,26 @@ const PathCache = struct {
         return cache;
     }
 
+    fn copyTo(cache: *PathCache, other: *PathCache) !void {
+        // Copy points
+        for (cache.points.items) |*point| {
+            const new_point = try other.points.addOne();
+            new_point.* = point.*;
+        }
+        // Copy paths
+        for (cache.paths.items) |*path| {
+            const new_path = try other.paths.addOne();
+            new_path.* = path.*;
+        }
+        // Copy verts
+        for (cache.verts.items) |*vert| {
+            const new_vert = try other.verts.addOne();
+            new_vert.* = vert.*;
+        }
+        // Copy bounds
+        other.bounds = cache.bounds;
+    }
+
     fn deinit(cache: *PathCache) void {
         cache.points.deinit();
         cache.paths.deinit();
@@ -1977,11 +2037,20 @@ const PathCache = struct {
         }
     }
 
-    fn clip(cache: *PathCache) void {
-        for (cache.paths.items) |*path| {
-            path.clip = true;
-        }
-    }
+    // fn clip(cache: *PathCache) void {
+    //     // Copy all paths to clip_paths
+    //     // for (cache.paths.items) |*path| {
+    //     //     const clip_path = cache.clip_paths.addOne() catch return;
+    //     //     clip_path.* = path.*;
+    //     //     clip_path.clip = true;
+    //     // }
+
+    //     // cache.paths.clearRetainingCapacity();
+
+    //     for (cache.paths.items) |*path| {
+    //         path.clip = true;
+    //     }
+    // }
 };
 
 fn sign(a: f32) f32 {

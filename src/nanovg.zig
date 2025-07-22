@@ -833,6 +833,11 @@ pub fn clip(self: Self) void {
     self.ctx.clip();
 }
 
+// Clears the current clip path.
+pub fn clearClip(self: Self) void {
+    self.ctx.clearClip();
+}
+
 // Fills the current path with current fill style.
 pub fn fill(self: Self) void {
     self.ctx.fill();
