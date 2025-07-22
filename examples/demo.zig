@@ -408,91 +408,82 @@ fn drawSlider(vg: nvg, pos: f32, x: f32, y: f32, w: f32, h: f32) void {
 }
 
 fn drawEyes(vg: nvg, x: f32, y: f32, w: f32, h: f32, mx: f32, my: f32, t: f32) void {
-    _ = mx;
-    _ = my;
-    _ = t;
-
-    std.debug.print("drawEyes x: {d} y: {d} w: {d} h: {d}\n", .{ x, y, w, h });
-
-    vg.save();
-
     vg.beginPath();
-    vg.rect(x, y, w / 2, h / 2);
+    vg.rect(x - 2, y - 2, w + 4, h + 4);
+    // vg.rect(x + @sin(t * 2.0) * 100, y + @cos(t * 2.0) * 100, 100, 100);
     vg.clip();
 
     vg.beginPath();
     vg.rect(x, y, w, h);
-    // vg.strokeColor(nvg.rgba(255, 0, 0, 255));
-    // vg.stroke();
+    vg.strokeColor(nvg.rgba(0, 255, 0, 255));
+    vg.stroke();
     vg.fillColor(nvg.rgba(255, 0, 0, 255));
     vg.fill();
 
+    const ex = w * 0.23;
+    const ey = h * 0.5;
+    const lx = x + ex;
+    const ly = y + ey;
+    const rx = x + w - ex;
+    const ry = y + ey;
+    const br = (if (ex < ey) ex else ey) * 0.5;
+    const blink = 1 - std.math.pow(f32, @sin(t * 0.5), 200) * 0.8;
+
+    var bg = vg.linearGradient(x, y + h * 0.5, x + w * 0.1, y + h, nvg.rgba(0, 0, 0, 32), nvg.rgba(0, 0, 0, 16));
+    vg.beginPath();
+    vg.ellipse(lx + 3.0, ly + 16.0, ex, ey);
+    vg.ellipse(rx + 3.0, ry + 16.0, ex, ey);
+    vg.fillPaint(bg);
+    vg.fill();
+
+    bg = vg.linearGradient(x, y + h * 0.25, x + w * 0.1, y + h, nvg.rgba(220, 220, 220, 255), nvg.rgba(128, 128, 128, 255));
+    vg.beginPath();
+    vg.ellipse(lx, ly, ex, ey);
+    vg.ellipse(rx, ry, ex, ey);
+    vg.fillPaint(bg);
+    vg.fill();
+
+    var dx = (mx - rx) / (ex * 10);
+    var dy = (my - ry) / (ey * 10);
+    var d = @sqrt(dx * dx + dy * dy);
+    if (d > 1.0) {
+        dx /= d;
+        dy /= d;
+    }
+    dx *= ex * 0.4;
+    dy *= ey * 0.5;
+    vg.beginPath();
+    vg.ellipse(lx + dx, ly + dy + ey * 0.25 * (1 - blink), br, br * blink);
+    vg.fillColor(nvg.rgba(32, 32, 32, 255));
+    vg.fill();
+
+    dx = (mx - rx) / (ex * 10);
+    dy = (my - ry) / (ey * 10);
+    d = @sqrt(dx * dx + dy * dy);
+    if (d > 1.0) {
+        dx /= d;
+        dy /= d;
+    }
+    dx *= ex * 0.4;
+    dy *= ey * 0.5;
+    vg.beginPath();
+    vg.ellipse(rx + dx, ry + dy + ey * 0.25 * (1 - blink), br, br * blink);
+    vg.fillColor(nvg.rgba(32, 32, 32, 255));
+    vg.fill();
+
+    var gloss = vg.radialGradient(lx - ex * 0.25, ly - ey * 0.5, ex * 0.1, ex * 0.75, nvg.rgba(255, 255, 255, 128), nvg.rgba(255, 255, 255, 0));
+    vg.beginPath();
+    vg.ellipse(lx, ly, ex, ey);
+    vg.fillPaint(gloss);
+    vg.fill();
+
+    gloss = vg.radialGradient(rx - ex * 0.25, ry - ey * 0.5, ex * 0.1, ex * 0.75, nvg.rgba(255, 255, 255, 128), nvg.rgba(255, 255, 255, 0));
+    vg.beginPath();
+    vg.ellipse(rx, ry, ex, ey);
+    vg.fillPaint(gloss);
+    vg.fill();
+
     vg.clearClip();
-
-    vg.restore();
-
-    // const ex = w * 0.23;
-    // const ey = h * 0.5;
-    // const lx = x + ex;
-    // const ly = y + ey;
-    // const rx = x + w - ex;
-    // const ry = y + ey;
-    // const br = (if (ex < ey) ex else ey) * 0.5;
-    // const blink = 1 - std.math.pow(f32, @sin(t * 0.5), 200) * 0.8;
-
-    // var bg = vg.linearGradient(x, y + h * 0.5, x + w * 0.1, y + h, nvg.rgba(0, 0, 0, 32), nvg.rgba(0, 0, 0, 16));
-    // vg.beginPath();
-    // vg.ellipse(lx + 3.0, ly + 16.0, ex, ey);
-    // vg.ellipse(rx + 3.0, ry + 16.0, ex, ey);
-    // vg.fillPaint(bg);
-    // vg.fill();
-
-    // bg = vg.linearGradient(x, y + h * 0.25, x + w * 0.1, y + h, nvg.rgba(220, 220, 220, 255), nvg.rgba(128, 128, 128, 255));
-    // vg.beginPath();
-    // vg.ellipse(lx, ly, ex, ey);
-    // vg.ellipse(rx, ry, ex, ey);
-    // vg.fillPaint(bg);
-    // vg.fill();
-
-    // var dx = (mx - rx) / (ex * 10);
-    // var dy = (my - ry) / (ey * 10);
-    // var d = @sqrt(dx * dx + dy * dy);
-    // if (d > 1.0) {
-    //     dx /= d;
-    //     dy /= d;
-    // }
-    // dx *= ex * 0.4;
-    // dy *= ey * 0.5;
-    // vg.beginPath();
-    // vg.ellipse(lx + dx, ly + dy + ey * 0.25 * (1 - blink), br, br * blink);
-    // vg.fillColor(nvg.rgba(32, 32, 32, 255));
-    // vg.fill();
-
-    // dx = (mx - rx) / (ex * 10);
-    // dy = (my - ry) / (ey * 10);
-    // d = @sqrt(dx * dx + dy * dy);
-    // if (d > 1.0) {
-    //     dx /= d;
-    //     dy /= d;
-    // }
-    // dx *= ex * 0.4;
-    // dy *= ey * 0.5;
-    // vg.beginPath();
-    // vg.ellipse(rx + dx, ry + dy + ey * 0.25 * (1 - blink), br, br * blink);
-    // vg.fillColor(nvg.rgba(32, 32, 32, 255));
-    // vg.fill();
-
-    // var gloss = vg.radialGradient(lx - ex * 0.25, ly - ey * 0.5, ex * 0.1, ex * 0.75, nvg.rgba(255, 255, 255, 128), nvg.rgba(255, 255, 255, 0));
-    // vg.beginPath();
-    // vg.ellipse(lx, ly, ex, ey);
-    // vg.fillPaint(gloss);
-    // vg.fill();
-
-    // gloss = vg.radialGradient(rx - ex * 0.25, ry - ey * 0.5, ex * 0.1, ex * 0.75, nvg.rgba(255, 255, 255, 128), nvg.rgba(255, 255, 255, 0));
-    // vg.beginPath();
-    // vg.ellipse(rx, ry, ex, ey);
-    // vg.fillPaint(gloss);
-    // vg.fill();
 }
 
 fn drawParagraph(vg: nvg, x_arg: f32, y_arg: f32, width: f32, height: f32, mx: f32, my: f32) void {

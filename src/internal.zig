@@ -278,6 +278,7 @@ pub const Context = struct {
     }
 
     pub fn beginFrame(ctx: *Context, window_width: f32, window_height: f32, device_pixel_ratio: f32) void {
+        ctx.cache.clip_verts.clearRetainingCapacity();
         ctx.cache.clip_paths.clearRetainingCapacity(); // TODO(jake): Maybe something else here
 
         ctx.states.clearRetainingCapacity();
@@ -363,7 +364,7 @@ pub const Context = struct {
                     i += 7;
                 },
                 .winding => i += 2,
-                .close, .clip => i += 1,
+                .close => i += 1,
             }
         }
 
@@ -440,11 +441,6 @@ pub const Context = struct {
                 .winding => {
                     cache.pathWinding(@enumFromInt(@as(u2, @intFromFloat(ctx.commands.items[i + 1]))));
                     i += 2;
-                },
-                .clip => {
-                    // Don't apply clip here, it should already be applied
-                    // ctx.applyClip();
-                    i += 1;
                 },
             }
         }
@@ -930,23 +926,24 @@ pub const Context = struct {
     }
 
     pub fn clip(ctx: *Context) void {
-        // ctx.appendCommands(.{Command.clip.toValue()});
         // Print current path
         ctx.flattenPaths();
         ctx.expandFill(.miter, 2.4) catch return;
 
         // Copy all paths to clip_paths
         ctx.cache.clip_paths.clearRetainingCapacity();
+        ctx.cache.clip_verts.clearRetainingCapacity();
         for (ctx.cache.paths.items) |*path| {
             const new_path = ctx.cache.clip_paths.addOne() catch return;
             new_path.* = path.*;
+            const i = ctx.cache.clip_verts.items.len;
+            for (path.fill) |*p| {
+                ctx.cache.clip_verts.addOneAssumeCapacity().set(p.x, p.y, 0.5, 1);
+            }
+            const j = ctx.cache.clip_verts.items.len;
+            new_path.fill = ctx.cache.clip_verts.items[i..j];
         }
         ctx.cache.paths.clearRetainingCapacity();
-
-        std.debug.print("Current path: {}\n", .{ctx.cache.clip_paths.items.len});
-        for (ctx.cache.clip_paths.items) |*path| {
-            std.debug.print("Path: {}\n", .{path.count});
-        }
     }
 
     pub fn clearClip(ctx: *Context) void {
@@ -1171,35 +1168,8 @@ pub const Context = struct {
 
         ctx.expandFill(.miter, 2.4) catch return;
 
-        // if (ctx.cache.paths.items[0].clip) {
-        //     // Find position where clip paths end
-        //     var i: usize = 0;
-        //     while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
-        //     ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
-        // } else {
-        //     ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
-        // }
-
         // Render fill with no clip paths
         // ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
-
-        if (ctx.cache.clip_paths.items.len > 0) {
-            std.debug.print("Rendering fill with Clip path: {}\n", .{ctx.cache.clip_paths.items.len});
-
-            std.debug.print("ClipCache: {}\n", .{ctx.cache.clip_paths.items.len});
-            std.debug.print("Points: {}\n", .{ctx.cache.points.items.len});
-            std.debug.print("Verts: {}\n", .{ctx.cache.verts.items.len});
-            // for (ctx.clip_cache.verts.items) |*vert| {
-            //     std.debug.print("    Vert: {} {}\n", .{ vert.x, vert.y });
-            // }
-            for (ctx.cache.clip_paths.items) |*path| {
-                std.debug.print("  Path: {}\n", .{path.count});
-                for (path.fill) |*fill2| {
-                    std.debug.print("    Fill: {d} {d}\n", .{ fill2.x, fill2.y });
-                }
-            }
-            std.debug.print("--------------------------------\n", .{});
-        }
 
         ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.clip_paths.items, ctx.cache.paths.items);
 
@@ -1226,14 +1196,34 @@ pub const Context = struct {
 
         ctx.expandStroke(stroke_width * 0.5, state.line_cap, state.line_join, state.miter_limit) catch return;
 
-        if (ctx.cache.paths.items[0].clip) {
-            // Find position where clip paths end
-            var i: usize = 0;
-            while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
-            ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
-        } else {
-            ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        // if (ctx.cache.paths.items[0].clip) {
+        //     // Find position where clip paths end
+        //     var i: usize = 0;
+        //     while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
+        //     ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
+        // } else {
+        //     ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+        // }
+
+        if (ctx.cache.clip_paths.items.len > 0) {
+            std.debug.print("Rendering stroke with Clip path: {}\n", .{ctx.cache.clip_paths.items.len});
+
+            std.debug.print("ClipCache: {}\n", .{ctx.cache.clip_paths.items.len});
+            std.debug.print("Points: {}\n", .{ctx.cache.points.items.len});
+            std.debug.print("Verts: {}\n", .{ctx.cache.verts.items.len});
+            // for (ctx.clip_cache.verts.items) |*vert| {
+            //     std.debug.print("    Vert: {} {}\n", .{ vert.x, vert.y });
+            // }
+            for (ctx.cache.clip_paths.items) |*path| {
+                std.debug.print("  Path: {}\n", .{path.count});
+                for (path.fill) |*fill2| {
+                    std.debug.print("    Clip fill: {d} {d}\n", .{ fill2.x, fill2.y });
+                }
+            }
+            std.debug.print("--------------------------------\n", .{});
         }
+
+        ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.clip_paths.items, ctx.cache.paths.items);
 
         // Count triangles
         for (ctx.cache.paths.items) |path| {
@@ -1821,7 +1811,6 @@ const Command = enum(i32) {
     bezier_to = 2,
     close = 3,
     winding = 4,
-    clip = 5,
 
     fn fromValue(val: f32) Command {
         return @enumFromInt(@as(i32, @intFromFloat(val)));
@@ -1931,6 +1920,7 @@ const PathCache = struct {
     points: ArrayList(Point),
     paths: ArrayList(Path),
     clip_paths: ArrayList(Path),
+    clip_verts: ArrayList(Vertex),
     verts: ArrayList(Vertex),
     bounds: [4]f32 = [_]f32{0} ** 4,
 
@@ -1940,12 +1930,14 @@ const PathCache = struct {
             .points = try ArrayList(Point).initCapacity(allocator, 128),
             .paths = try ArrayList(Path).initCapacity(allocator, 16),
             .clip_paths = try ArrayList(Path).initCapacity(allocator, 16),
+            .clip_verts = try ArrayList(Vertex).initCapacity(allocator, 256),
             .verts = try ArrayList(Vertex).initCapacity(allocator, 256),
         };
         errdefer cache.deinit();
         try cache.points.ensureTotalCapacity(128);
         try cache.paths.ensureTotalCapacity(16);
         try cache.clip_paths.ensureTotalCapacity(16);
+        try cache.clip_verts.ensureTotalCapacity(256);
         try cache.verts.ensureTotalCapacity(256);
         return cache;
     }
@@ -1954,6 +1946,7 @@ const PathCache = struct {
         cache.points.deinit();
         cache.paths.deinit();
         cache.clip_paths.deinit();
+        cache.clip_verts.deinit();
         cache.verts.deinit();
     }
 
