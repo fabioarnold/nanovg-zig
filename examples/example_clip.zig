@@ -285,8 +285,10 @@ pub fn main() !void {
         cursor_shape.path(vg, 100);
         vg.restore();
         vg.clip();
+        vg.beginPath();
         pathShapes(vg, @floatFromInt(win_width), @floatFromInt(win_height));
         vg.fill();
+        vg.clearClip();
 
         // draw some random thing in the center
         vg.translate(500, 300);
@@ -302,13 +304,23 @@ pub fn main() !void {
         vg.stroke();
         vg.fillColor(nvg.rgbf(1, 0, 0));
         vg.fill();
-
         vg.clip();
+
+        vg.beginPath();
+        vg.rotate(-1.1 * t32);
+        Shape.rect.path(vg, 80);
+        vg.strokeColor(nvg.rgb(0, 0, 0));
+        vg.fillColor(nvg.rgbf(1, 0, 1));
+        vg.fill();
+        vg.stroke();
+
+        vg.beginPath();
         vg.rotate(3 * t32);
         Shape.star.path(vg, 100);
         vg.stroke();
         vg.fillColor(nvg.rgbf(1, 1, 0));
         vg.fill();
+        vg.clearClip();
 
         vg.endFrame();
 

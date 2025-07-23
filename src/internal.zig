@@ -1168,9 +1168,6 @@ pub const Context = struct {
 
         ctx.expandFill(.miter, 2.4) catch return;
 
-        // Render fill with no clip paths
-        // ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
-
         ctx.params.renderFill(ctx.params.user_ptr, &fill_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.clip_paths.items, ctx.cache.paths.items);
 
         // Count triangles
@@ -1195,33 +1192,6 @@ pub const Context = struct {
         if (ctx.cache.paths.items.len == 0) return;
 
         ctx.expandStroke(stroke_width * 0.5, state.line_cap, state.line_join, state.miter_limit) catch return;
-
-        // if (ctx.cache.paths.items[0].clip) {
-        //     // Find position where clip paths end
-        //     var i: usize = 0;
-        //     while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
-        //     ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
-        // } else {
-        //     ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
-        // }
-
-        if (ctx.cache.clip_paths.items.len > 0) {
-            std.debug.print("Rendering stroke with Clip path: {}\n", .{ctx.cache.clip_paths.items.len});
-
-            std.debug.print("ClipCache: {}\n", .{ctx.cache.clip_paths.items.len});
-            std.debug.print("Points: {}\n", .{ctx.cache.points.items.len});
-            std.debug.print("Verts: {}\n", .{ctx.cache.verts.items.len});
-            // for (ctx.clip_cache.verts.items) |*vert| {
-            //     std.debug.print("    Vert: {} {}\n", .{ vert.x, vert.y });
-            // }
-            for (ctx.cache.clip_paths.items) |*path| {
-                std.debug.print("  Path: {}\n", .{path.count});
-                for (path.fill) |*fill2| {
-                    std.debug.print("    Clip fill: {d} {d}\n", .{ fill2.x, fill2.y });
-                }
-            }
-            std.debug.print("--------------------------------\n", .{});
-        }
 
         ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.clip_paths.items, ctx.cache.paths.items);
 
