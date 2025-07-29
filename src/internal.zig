@@ -935,7 +935,7 @@ pub const Context = struct {
     }
 
     pub fn clip(ctx: *Context) void {
-        // Print current path
+        // Create a clip path fill from the current path
         ctx.flattenPaths();
         ctx.expandFill(.miter, 2.4) catch return;
 
@@ -1931,7 +1931,6 @@ const PathCache = struct {
     pub fn clear(cache: *PathCache) void {
         cache.points.clearRetainingCapacity();
         cache.paths.clearRetainingCapacity();
-        // cache.clip_paths.clearRetainingCapacity(); // Don't clear clip paths
     }
 
     fn allocTempVerts(cache: *PathCache, nverts: u32) ![]Vertex {
@@ -1998,21 +1997,6 @@ const PathCache = struct {
             path.winding = winding;
         }
     }
-
-    // fn clip(cache: *PathCache) void {
-    //     // Copy all paths to clip_paths
-    //     // for (cache.paths.items) |*path| {
-    //     //     const clip_path = cache.clip_paths.addOne() catch return;
-    //     //     clip_path.* = path.*;
-    //     //     clip_path.clip = true;
-    //     // }
-
-    //     // cache.paths.clearRetainingCapacity();
-
-    //     for (cache.paths.items) |*path| {
-    //         path.clip = true;
-    //     }
-    // }
 };
 
 fn sign(a: f32) f32 {

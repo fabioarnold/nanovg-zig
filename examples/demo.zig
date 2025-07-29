@@ -408,18 +408,6 @@ fn drawSlider(vg: nvg, pos: f32, x: f32, y: f32, w: f32, h: f32) void {
 }
 
 fn drawEyes(vg: nvg, x: f32, y: f32, w: f32, h: f32, mx: f32, my: f32, t: f32) void {
-    vg.beginPath();
-    vg.rect(x - 2, y - 2, w + 4, h + 4);
-    // vg.rect(x + @sin(t * 2.0) * 100, y + @cos(t * 2.0) * 100, 100, 100);
-    vg.clip();
-
-    vg.beginPath();
-    vg.rect(x, y, w, h);
-    vg.strokeColor(nvg.rgba(0, 255, 0, 255));
-    vg.stroke();
-    vg.fillColor(nvg.rgba(255, 0, 0, 255));
-    vg.fill();
-
     const ex = w * 0.23;
     const ey = h * 0.5;
     const lx = x + ex;
@@ -482,8 +470,6 @@ fn drawEyes(vg: nvg, x: f32, y: f32, w: f32, h: f32, mx: f32, my: f32, t: f32) v
     vg.ellipse(rx, ry, ex, ey);
     vg.fillPaint(gloss);
     vg.fill();
-
-    vg.clearClip();
 }
 
 fn drawParagraph(vg: nvg, x_arg: f32, y_arg: f32, width: f32, height: f32, mx: f32, my: f32) void {
