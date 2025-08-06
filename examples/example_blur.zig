@@ -11,7 +11,7 @@ const c = @cImport({
 
 const PerfGraph = @import("perf.zig");
 
-fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_int, mods: c_int) callconv(.C) void {
+fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_int, mods: c_int) callconv(.c) void {
     _ = scancode;
     _ = mods;
     if (key == c.GLFW_KEY_ESCAPE and action == c.GLFW_PRESS)
