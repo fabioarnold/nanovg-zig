@@ -42,7 +42,7 @@ pub var global_allocator: std.mem.Allocator = undefined;
 
 const malloc_alignment = 16;
 
-export fn malloc(size: usize) callconv(.C) ?[*]u8 {
+export fn malloc(size: usize) callconv(.c) ?[*]u8 {
     const buffer = global_allocator.alignedAlloc(u8, malloc_alignment, size + malloc_alignment) catch {
         logger.err("Allocation failure for size={}", .{size});
         return null;
@@ -51,7 +51,7 @@ export fn malloc(size: usize) callconv(.C) ?[*]u8 {
     return buffer.ptr + malloc_alignment;
 }
 
-export fn realloc(ptr: ?[*]const u8, size: usize) callconv(.C) ?[*]u8 {
+export fn realloc(ptr: ?[*]const u8, size: usize) callconv(.c) ?[*]u8 {
     const p = ptr orelse return malloc(size);
     defer free(p);
     if (size == 0) return null;
@@ -61,13 +61,13 @@ export fn realloc(ptr: ?[*]const u8, size: usize) callconv(.C) ?[*]u8 {
     return memmove(new, actual_buffer + malloc_alignment, len);
 }
 
-export fn free(ptr: ?[*]const u8) callconv(.C) void {
+export fn free(ptr: ?[*]const u8) callconv(.c) void {
     const actual_buffer = (ptr orelse return) - 16;
     const len = std.mem.readInt(usize, actual_buffer[0..@sizeOf(usize)], .little);
     global_allocator.free(actual_buffer[0..len]);
 }
 
-pub fn memmove(dest: ?[*]u8, src: ?[*]const u8, n: usize) callconv(.C) ?[*]u8 {
+pub fn memmove(dest: ?[*]u8, src: ?[*]const u8, n: usize) callconv(.c) ?[*]u8 {
     @setRuntimeSafety(false);
 
     if (@intFromPtr(dest) < @intFromPtr(src)) {
