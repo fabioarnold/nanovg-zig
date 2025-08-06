@@ -13,14 +13,14 @@ const random = prng.random();
 
 var cursor_shape: Shape = .star;
 
-fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_int, mods: c_int) callconv(.C) void {
+fn keyCallback(window: ?*c.GLFWwindow, key: c_int, scancode: c_int, action: c_int, mods: c_int) callconv(.c) void {
     _ = scancode;
     _ = mods;
     if (key == c.GLFW_KEY_ESCAPE and action == c.GLFW_PRESS)
         c.glfwSetWindowShouldClose(window, c.GL_TRUE);
 }
 
-fn mouseButtonCallback(window: ?*c.GLFWwindow, button: c_int, action: c_int, mods: c_int) callconv(.C) void {
+fn mouseButtonCallback(window: ?*c.GLFWwindow, button: c_int, action: c_int, mods: c_int) callconv(.c) void {
     _ = window;
     _ = mods;
     if (button == c.GLFW_MOUSE_BUTTON_LEFT and action == c.GLFW_PRESS) {
@@ -90,7 +90,7 @@ fn pathTwitterLogo(vg: nvg, w: f32, h: f32) void {
             221.95,51.29,
             222.1,53.46, 222.1,55.63, 222.1,57.82,
             222.1,124.55, 171.3,201.51, 78.41,201.51,
-            50.97,201.51, 24.1,193.65, 1,178.83, 
+            50.97,201.51, 24.1,193.65, 1,178.83,
             4.99,179.31, 9,179.55, 13.02,179.56,
             35.76,179.58, 57.85,171.95, 75.74,157.9,
             54.13,157.49, 35.18,143.4, 28.56,122.83,

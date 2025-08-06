@@ -33,9 +33,11 @@ pub fn build(b: *std.Build) !void {
 fn installDemo(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, name: []const u8, root_source_file: []const u8, nanovg_mod: *std.Build.Module) *std.Build.Step.Compile {
     const demo = b.addExecutable(.{
         .name = name,
-        .root_source_file = b.path(root_source_file),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path(root_source_file),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     demo.root_module.addImport("nanovg", nanovg_mod);
 
