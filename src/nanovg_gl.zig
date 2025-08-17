@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 
 const use_webgl = builtin.cpu.arch.isWasm();
 pub const gl = if (use_webgl)
@@ -44,12 +44,6 @@ pub fn init(allocator: Allocator, options: Options) !nvg {
     };
 }
 
-pub fn findTexture(vg: nvg, image: nvg.Image) gl.GLuint {
-    const gl_ctx: *GLContext = @alignCast(@ptrCast(vg.ctx.params.user_ptr));
-    const tex = gl_ctx.findTexture(image.handle) orelse return 0;
-    return tex.tex;
-}
-
 const GLContext = struct {
     allocator: Allocator,
     options: Options,
@@ -90,7 +84,7 @@ const GLContext = struct {
     }
 
     fn castPtr(ptr: *anyopaque) *GLContext {
-        return @alignCast(@ptrCast(ptr));
+        return @ptrCast(@alignCast(ptr));
     }
 
     fn checkError(ctx: GLContext, str: []const u8) void {
@@ -253,7 +247,9 @@ pub const Framebuffer = struct {
         image_flags.flip_y = true;
         image_flags.premultiplied = true;
         fb.image = vg.createImageRGBA(w, h, image_flags, null);
-        fb.texture = findTexture(vg, fb.image);
+
+        const gl_ctx: *GLContext = @ptrCast(@alignCast(vg.ctx.params.user_ptr));
+        fb.texture = gl_ctx.findTexture(fb.image.handle).?.tex;
 
         // frame buffer object
         gl.glGenFramebuffers(1, &fb.fbo);
@@ -572,8 +568,8 @@ const FragUniforms = struct {
 
         frag.* = std.mem.zeroes(FragUniforms);
 
-        frag.inner_color = paint.inner_color;
-        frag.outer_color = paint.outer_color;
+        frag.inner_color = premulColor(paint.inner_color);
+        frag.outer_color = premulColor(paint.outer_color);
 
         if (scissor.extent[0] < -0.5 or scissor.extent[1] < -0.5) {
             @memset(&frag.scissor_mat, 0);
@@ -589,9 +585,6 @@ const FragUniforms = struct {
             frag.scissor_scale[0] = @sqrt(scissor.xform[0] * scissor.xform[0] + scissor.xform[2] * scissor.xform[2]);
             frag.scissor_scale[1] = @sqrt(scissor.xform[1] * scissor.xform[1] + scissor.xform[3] * scissor.xform[3]);
         }
-
-        frag.radius = paint.radius;
-        frag.feather = paint.feather;
 
         @memcpy(&frag.extent, &paint.extent);
 
@@ -627,6 +620,8 @@ const FragUniforms = struct {
             }
         } else {
             frag.shaderType = @floatFromInt(@intFromEnum(ShaderType.fill_gradient));
+            frag.radius = paint.radius;
+            frag.feather = paint.feather;
             _ = nvg.transformInverse(&invxform, &paint.xform);
         }
 
