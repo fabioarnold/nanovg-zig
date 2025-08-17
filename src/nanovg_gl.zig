@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 
 const use_webgl = builtin.cpu.arch.isWasm();
 pub const gl = if (use_webgl)
@@ -84,7 +84,7 @@ const GLContext = struct {
     }
 
     fn castPtr(ptr: *anyopaque) *GLContext {
-        return @alignCast(@ptrCast(ptr));
+        return @ptrCast(@alignCast(ptr));
     }
 
     fn checkError(ctx: GLContext, str: []const u8) void {
@@ -248,7 +248,7 @@ pub const Framebuffer = struct {
         image_flags.premultiplied = true;
         fb.image = vg.createImageRGBA(w, h, image_flags, null);
 
-        const gl_ctx: *GLContext = @alignCast(@ptrCast(vg.ctx.params.user_ptr));
+        const gl_ctx: *GLContext = @ptrCast(@alignCast(vg.ctx.params.user_ptr));
         fb.texture = gl_ctx.findTexture(fb.image.handle).?.tex;
 
         // frame buffer object
