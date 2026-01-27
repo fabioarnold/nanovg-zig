@@ -5,34 +5,36 @@ pub extern fn performanceNow() f32;
 
 pub extern fn download(filenamePtr: [*]const u8, filenameLen: usize, mimetypePtr: [*]const u8, mimetypeLen: usize, dataPtr: [*]const u8, dataLen: usize) void;
 
-extern fn wasm_log_write(ptr: [*]const u8, len: usize) void;
+extern fn wasm_log_write(ptr: [*]const u8, len: usize) callconv(.c) void;
 
-extern fn wasm_log_flush() void;
+extern fn wasm_log_flush() callconv(.c) void;
 
-const WriteError = error{};
-const LogWriter = std.io.Writer(void, WriteError, writeLog);
-
-fn writeLog(_: void, msg: []const u8) WriteError!usize {
-    wasm_log_write(msg.ptr, msg.len);
-    return msg.len;
+fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+    _ = data;
+    _ = splat;
+    const string = w.buffered();
+    wasm_log_write(string.ptr, string.len);
+    return w.consumeAll();
 }
 
-/// Overwrite default log handler
+/// Overwrite default log handler.
 pub fn log(
-    comptime message_level: std.log.Level,
+    comptime level: std.log.Level,
     comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const level_txt = switch (message_level) {
-        .err => "error",
-        .warn => "warning",
-        .info => "info",
-        .debug => "debug",
+    var buffer: [1024]u8 = undefined;
+    var writer: std.Io.Writer = .{
+        .buffer = &buffer,
+        .vtable = &.{
+            .drain = &drain,
+        },
     };
-    const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
 
-    (LogWriter{ .context = {} }).print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
+    const prefix = "[" ++ @tagName(level) ++ "] " ++ "(" ++ @tagName(scope) ++ "): ";
+    writer.print(prefix ++ format ++ "\n", args) catch return;
+    writer.flush() catch return;
 
     wasm_log_flush();
 }
@@ -43,7 +45,7 @@ pub var global_allocator: std.mem.Allocator = undefined;
 const malloc_alignment = 16;
 
 export fn malloc(size: usize) callconv(.c) ?[*]u8 {
-    const buffer = global_allocator.alignedAlloc(u8, malloc_alignment, size + malloc_alignment) catch {
+    const buffer = global_allocator.alignedAlloc(u8, .@"16", size + malloc_alignment) catch {
         logger.err("Allocation failure for size={}", .{size});
         return null;
     };
