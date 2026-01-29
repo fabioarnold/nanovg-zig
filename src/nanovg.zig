@@ -799,6 +799,11 @@ pub fn closePath(self: Self) void {
     self.ctx.closePath();
 }
 
+// Calculate the length of the current path.
+pub fn pathLength(self: Self) f32 {
+    return self.ctx.pathLength();
+}
+
 // Sets the current sub-path winding, see NVGwinding and NVGsolidity.
 pub fn pathWinding(self: Self, dir: Winding) void {
     self.ctx.pathWinding(dir);
@@ -849,6 +854,16 @@ pub fn fill(self: Self) void {
 // Fills the current path with current stroke style.
 pub fn stroke(self: Self) void {
     self.ctx.stroke();
+}
+
+// Fills the current path with current stroke style, but limits the total stroke length.
+pub fn strokeWithLimit(self: Self, max_length: f32) void {
+    self.ctx.strokeWithLimit(max_length);
+}
+
+// Compute the coordinate at the end of the path constrained by max_length.
+pub fn pathEndPoint(self: Self, max_length: f32, x: *f32, y: *f32) void {
+    self.ctx.pathEndPoint(max_length, x, y);
 }
 
 //

@@ -401,6 +401,41 @@ pub const Context = struct {
         ctx.tesselateBezier(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1, cornerType);
     }
 
+    fn tesselateBezierLength(ctx: *Context, x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32, x4: f32, y4: f32, level: u8) f32 {
+        if (level > 10) {
+            const dx = x4 - x1;
+            const dy = y4 - y1;
+            return @sqrt(dx * dx + dy * dy);
+        }
+
+        const x12 = (x1 + x2) * 0.5;
+        const y12 = (y1 + y2) * 0.5;
+        const x23 = (x2 + x3) * 0.5;
+        const y23 = (y2 + y3) * 0.5;
+        const x34 = (x3 + x4) * 0.5;
+        const y34 = (y3 + y4) * 0.5;
+        const x123 = (x12 + x23) * 0.5;
+        const y123 = (y12 + y23) * 0.5;
+
+        const dx = x4 - x1;
+        const dy = y4 - y1;
+
+        const d2 = @abs(((x2 - x4) * dy - (y2 - y4) * dx));
+        const d3 = @abs(((x3 - x4) * dy - (y3 - y4) * dx));
+
+        if ((d2 + d3) * (d2 + d3) < ctx.tess_tol * (dx * dx + dy * dy)) {
+            return @sqrt(dx * dx + dy * dy);
+        }
+
+        const x234 = (x23 + x34) * 0.5;
+        const y234 = (y23 + y34) * 0.5;
+        const x1234 = (x123 + x234) * 0.5;
+        const y1234 = (y123 + y234) * 0.5;
+
+        return ctx.tesselateBezierLength(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1) +
+            ctx.tesselateBezierLength(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
+    }
+
     fn flattenPaths(ctx: *Context) void {
         const cache = &ctx.cache;
 
@@ -1185,11 +1220,233 @@ pub const Context = struct {
             ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
         }
 
+        for (ctx.cache.paths.items) |path| {
+            if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(path.stroke.len - 2);
+            ctx.draw_call_count += 2;
+        }
+    }
+
+    pub fn strokeWithLimit(ctx: *Context, max_length: f32) void {
+        const state = ctx.getState();
+        const s = getAverageScale(state.xform);
+        const stroke_width = std.math.clamp(state.stroke_width * s, 0, 200);
+        var stroke_paint = state.stroke;
+
+        // Apply global alpha
+        stroke_paint.inner_color.a *= state.alpha;
+        stroke_paint.outer_color.a *= state.alpha;
+
+        ctx.flattenPaths();
+        if (ctx.cache.paths.items.len == 0) return;
+
+        // Truncate paths to max_length
+        var cur_len: f32 = 0;
+        var paths_limit_idx: usize = ctx.cache.paths.items.len;
+        var found = false;
+
+        // Iterate paths
+        for (ctx.cache.paths.items, 0..) |*path, path_idx| {
+            if (found) break;
+            const pts_start = path.first;
+            const pts_count = path.count;
+            const pts = ctx.cache.points.items[pts_start..][0..pts_count];
+
+            // Iterate points
+            for (pts, 0..) |*p, i| {
+                // Segment length from p to next.
+                // If path not closed and last point, skip (no segment following).
+                if (!path.closed and i == pts.len - 1) continue;
+
+                const seg_len = p.len;
+                if (cur_len + seg_len > max_length) {
+                    // Cut here.
+                    const target = max_length - cur_len;
+
+                    // Calculate new end position
+                    const new_x = p.x + p.dx * target;
+                    const new_y = p.y + p.dy * target;
+
+                    const next_idx = if (i + 1 < pts.len) i + 1 else 0;
+
+                    if (next_idx == 0) {
+                        // Cutting the closing segment (last -> first).
+                        // We must append a new point, can't overwrite first.
+                        // Using the cache points directly to potentially append
+                        if (pts_start + pts_count < ctx.cache.points.items.len) {
+                            // We have space (garbage from subsequent paths or capacity)
+                            var new_p = &ctx.cache.points.items[pts_start + pts_count];
+                            new_p.x = new_x;
+                            new_p.y = new_y;
+                            new_p.flags = .{ .corner = true }; // Ensure it's treated as a corner? Or inherit?
+                            path.count += 1;
+                        } else {
+                            // Append new point
+                            // Note: this might invalidate 'path' pointer if resized, but we break immediately.
+                            // However, we need to be careful about 'path' pointer which is from 'ctx.cache.paths.items'.
+                            // Resizing points shouldn't resize paths array.
+                            const new_p = Point{
+                                .x = new_x,
+                                .y = new_y,
+                                .dx = 0,
+                                .dy = 0,
+                                .len = 0,
+                                .dmx = 0,
+                                .dmy = 0,
+                                .flags = .{ .corner = true },
+                            };
+                            ctx.cache.points.append(new_p) catch return;
+                            // Re-get path pointer in case loose ref (though array didn't move)
+                            ctx.cache.paths.items[path_idx].count += 1;
+                        }
+                    } else {
+                        // Overwrite next point (which becomes the new end)
+                        var next_p = &pts[next_idx];
+                        next_p.x = new_x;
+                        next_p.y = new_y;
+
+                        path.count = @intCast(i + 2);
+                    }
+
+                    // Mark as open since we cut it
+                    ctx.cache.paths.items[path_idx].closed = false;
+
+                    // Truncate paths list to include this path
+                    paths_limit_idx = path_idx + 1;
+                    found = true;
+                    break;
+                }
+                cur_len += seg_len;
+            }
+        }
+
+        if (found) {
+            ctx.cache.paths.items.len = paths_limit_idx;
+        } else if (cur_len < max_length) {
+            // Reached end of all paths without hitting limit. Draw everything.
+        } else {
+            // Exact match or something?
+        }
+
+        ctx.expandStroke(stroke_width * 0.5, state.line_cap, state.line_join, state.miter_limit) catch return;
+
+        if (ctx.cache.paths.items.len > 0) {
+            if (ctx.cache.paths.items[0].clip) {
+                // Find position where clip paths end
+                var i: usize = 0;
+                while (i < ctx.cache.paths.items.len and ctx.cache.paths.items[i].clip) : (i += 1) {}
+                ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, ctx.cache.paths.items[0..i], ctx.cache.paths.items[i..]);
+            } else {
+                ctx.params.renderStroke(ctx.params.user_ptr, &stroke_paint, state.composite_operation, &state.scissor, ctx.cache.bounds, &.{}, ctx.cache.paths.items);
+            }
+        }
+
         // Count triangles
         for (ctx.cache.paths.items) |path| {
             if (path.stroke.len >= 2) ctx.fill_tri_count += @intCast(path.stroke.len - 2);
             ctx.draw_call_count += 2;
         }
+
+        // Clear cache to avoid state leaking to subsequent commands
+        ctx.cache.clear();
+    }
+
+    pub fn pathEndPoint(ctx: *Context, max_length: f32, x: *f32, y: *f32) void {
+        ctx.flattenPaths();
+        if (ctx.cache.paths.items.len == 0) {
+            x.* = 0;
+            y.* = 0;
+            return;
+        }
+
+        var cur_len: f32 = 0;
+
+        // Iterate paths
+        for (ctx.cache.paths.items) |path| {
+            const pts_start = path.first;
+            const pts_count = path.count;
+            if (pts_count == 0) continue;
+            const pts = ctx.cache.points.items[pts_start..][0..pts_count];
+
+            // Iterate points
+            for (pts, 0..) |*p, i| {
+                // Segment length from p to next.
+                // If path not closed and last point, skip (no segment following).
+                if (!path.closed and i == pts.len - 1) {
+                    // Update last known position to the end of the last segment (point p)
+                    x.* = p.x;
+                    y.* = p.y;
+                    continue;
+                }
+
+                const seg_len = p.len;
+                if (cur_len + seg_len > max_length) {
+                    const target = max_length - cur_len;
+
+                    x.* = p.x + p.dx * target;
+                    y.* = p.y + p.dy * target;
+                    return;
+                }
+                cur_len += seg_len;
+                // Update prediction to current point
+                x.* = p.x + p.dx * seg_len;
+                y.* = p.y + p.dy * seg_len;
+            }
+        }
+    }
+
+    pub fn pathLength(ctx: *Context) f32 {
+        var len: f32 = 0;
+        var start_x: f32 = 0;
+        var start_y: f32 = 0;
+        var last_x: f32 = 0;
+        var last_y: f32 = 0;
+
+        var i: u32 = 0;
+        while (i < ctx.commands.items.len) {
+            switch (Command.fromValue(ctx.commands.items[i])) {
+                .move_to => {
+                    const p = ctx.commands.items[i + 1 ..];
+                    start_x = p[0];
+                    start_y = p[1];
+                    last_x = p[0];
+                    last_y = p[1];
+                    i += 3;
+                },
+                .line_to => {
+                    const p = ctx.commands.items[i + 1 ..];
+                    const dx = p[0] - last_x;
+                    const dy = p[1] - last_y;
+                    len += @sqrt(dx * dx + dy * dy);
+                    last_x = p[0];
+                    last_y = p[1];
+                    i += 3;
+                },
+                .bezier_to => {
+                    const cp1 = ctx.commands.items[i + 1 ..];
+                    const cp2 = ctx.commands.items[i + 3 ..];
+                    const p = ctx.commands.items[i + 5 ..];
+                    len += ctx.tesselateBezierLength(last_x, last_y, cp1[0], cp1[1], cp2[0], cp2[1], p[0], p[1], 0);
+                    last_x = p[0];
+                    last_y = p[1];
+                    i += 7;
+                },
+                .close => {
+                    const dx = last_x - start_x;
+                    const dy = last_y - start_y;
+                    len += @sqrt(dx * dx + dy * dy);
+                    last_x = start_x;
+                    last_y = start_y;
+                    i += 1;
+                },
+                .winding => {
+                    i += 2;
+                },
+                .clip => {
+                    i += 1;
+                },
+            }
+        }
+        return len;
     }
 
     pub fn createFontMem(ctx: *Context, name: [:0]const u8, data: []const u8) i32 {
